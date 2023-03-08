@@ -64,4 +64,4 @@ def set_PWM():
 
 
 if __name__ == "__main__":
-    print()
+    set_PWM()
