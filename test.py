@@ -42,14 +42,14 @@ while True:
                 if keyevent.keystate == 1:
                     pwm2.ChangeDutyCycle(0)
                     pwm1r.ChangeDutyCycle(0)
-                    GPIO.output(REN, True)
-                    d = 10
+                    GPIO.output(REN, True) # Always set before driving motors
+                    d = 10 # duty cycle
                     
                     for i in range (8):
                         pwm1.ChangeDutyCycle(d)
                         
                         pwm2r.ChangeDutyCycle(d)
-                        d = d + 10
+                        d = d + 10 # increase speed over time
                         sleep(0.1)
                         
                 elif keyevent.keystate == 0:
@@ -59,7 +59,7 @@ while True:
                         pwm1.ChangeDutyCycle(100-d)
                         pwm2r.ChangeDutyCycle(100-d)
                         sleep(0.1)
-                    GPIO.output(REN, False)
+                    GPIO.output(REN, False) # Set after no longer running motors
                     
                    
             elif keyevent.scancode == 308:
