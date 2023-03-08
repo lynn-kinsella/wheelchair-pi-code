@@ -52,14 +52,16 @@ def set_PWM():
             GPIO.output(EN, False)
         else:
             # Convert to PWM
-            lpwm_new, rpwm_new = motor_utils.motor_map(speed, angle)
+            lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
 
             # Enable motor output
-            GPIO.ouput(EN, True)
+            GPIO.output(EN, True)
 
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
+        
+        sleep(5)
 
 
 
