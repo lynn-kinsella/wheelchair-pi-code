@@ -55,11 +55,11 @@ GPIO.setup(LPWM_pin, GPIO.OUT, initial = GPIO.LOW)
 # GPIO.setup(RPWM_R, GPIO.OUT, initial = GPIO.LOW)
 
 # Set pins as PWM
-pwm_r = GPIO.PWM(RPWM_pin, 20000) #Right Motor
+pwm_r = GPIO.PWM(RPWM_pin, 1000) #Right Motor
 pwm_r.start(0)
 # pwm1r = GPIO.PWM(38, 20000) #Right Motor, Reverse
 # pwm1r.start(0)
-pwm_l = GPIO.PWM(LPWM_pin, 20000) #Left Motor
+pwm_l = GPIO.PWM(LPWM_pin, 1000) #Left Motor
 pwm_l.start(0)
 # pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
 # pwm2r.start(0)
@@ -78,7 +78,7 @@ def set_PWM():
             GPIO.output(EN, output_enabled)
         else:
             # Convert to PWM
-            lpwm_new, rpwm_new = motor_utils.motor_map(speed, angle)
+            lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
 
             # Enable motor output
             if output_enabled == False:
@@ -105,7 +105,10 @@ def set_val_from_queue(old_val, q):
         return old_val
     
 def update_speed_state(state):
-    new_speed = state["target"]
+    diff = state["target"] - state["current"]
+    new_speed = state["current"] + diff*0.01
+
+
 
     
     state["previous"] = state["current"]
@@ -113,7 +116,9 @@ def update_speed_state(state):
     return state
 
 
-def update_angle_state(state):    
+def update_angle_state(state):   
+    diff = state["target"] - state["current"]
+    new_angle = state["current"] + diff*0.01 
     new_angle = state["target"]
 
 
@@ -129,7 +134,7 @@ def periodic_update():
         "current": 0,
         "previous": 0,
         "target": 0,
-        "phase":0
+        "phase": 0
     }
     speed_state = {
         "current": 0,
