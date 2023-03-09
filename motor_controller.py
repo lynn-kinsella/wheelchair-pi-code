@@ -66,6 +66,7 @@ pwm_l.start(0)
 
 
 def set_PWM():
+    output_enabled = False
     while True:
         # Get angle and speed info from external input
         speed, angle = PWM_queue.get()
@@ -73,13 +74,17 @@ def set_PWM():
         if speed < 5:
             pwm_r.ChangeDutyCycle(0)
             pwm_l.ChangeDutyCycle(0)
-            GPIO.output(EN, False)
+            output_enabled = False
+            GPIO.output(EN, output_enabled)
         else:
             # Convert to PWM
             lpwm_new, rpwm_new = motor_utils.motor_map(speed, angle)
 
             # Enable motor output
-            GPIO.ouput(EN, True)
+            if output_enabled == False:
+                output_enabled = True
+                GPIO.output(EN, output_enabled)
+                sleep(0.005)
 
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
