@@ -92,7 +92,7 @@ def set_PWM():
 
 def dummy_input():
     while True:
-        angle, speed = motor_utils.get_dummy_input()
+        angle, speed = motor_utils.dummy_external_input()
 
         angle_input_queue.put(angle)
         speed_input_queue.put(speed)
@@ -110,6 +110,7 @@ def update_speed_state(state):
     
     state["previous"] = state["current"]
     state["current"] = new_speed
+    return state
 
 
 def update_angle_state(state):    
@@ -120,6 +121,7 @@ def update_angle_state(state):
 
     state["previous"] = state["current"]
     state["current"] = new_angle
+    return state
 
 
 def periodic_update():
@@ -139,8 +141,8 @@ def periodic_update():
         angle_state["target"] = set_val_from_queue(angle_state["target"], angle_input_queue)
         speed_state["target"] = set_val_from_queue(speed_state["target"], speed_input_queue)
 
-        update_speed_state(speed_state)
-        update_angle_state(angle_state)
+        speed_state  = update_speed_state(speed_state)
+        angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["current"]))
 
