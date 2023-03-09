@@ -69,7 +69,7 @@ def set_PWM():
     output_enabled = False
     while True:
         # Get angle and speed info from external input
-        speed, angle = PWM_queue.get()
+        angle, speed = PWM_queue.get()
 
         if speed < 5:
             pwm_r.ChangeDutyCycle(0)
