@@ -56,6 +56,7 @@ def set_PWM():
 
             # Enable motor output
             GPIO.output(EN, True)
+            sleep(0.1)
 
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
