@@ -4,9 +4,23 @@ from state_enums import SpeedStates, AngleStates
 
 from threading import Thread, Lock, Event
 from queue import Queue, Empty
-import RPi.GPIO as GPIO
 from time import sleep
 
+class Motor:
+    def __init__(self, dc=0):
+        self.pwm = dc
+    def ChangeDutyCycle(self, dc):
+        self.pwm = dc
+    def __str__(self) -> str:
+        return str(self.pwm)
+
+class GPIO():
+    def output(pin, state):
+        #print("Pin ", pin, " in state ", state)
+        pass
+
+pwm_l = Motor()
+pwm_r = Motor()
 
 """
 Shared Variables
@@ -14,38 +28,6 @@ Shared Variables
 speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
-
-'''
-Pin List - 3/8/23
-4 - 5V high
-6 - GND
-10 - Enable (for motors, disable for break)
-12 - Right Motor FWD PWM
-38 -  Right Motor REV PWM
-40 - Left Motor REV PWM
-35 - Left Motor FWD PWM
-'''
-
-"""
-Initialize Pins
-"""
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(RIGHT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(MOTOR_ENABLE_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(LEFT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(LPWM_R, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(RPWM_R, GPIO.OUT, initial = GPIO.LOW)
-
-# Set pins as PWM
-pwm_r = GPIO.PWM(RIGHT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Right Motor
-pwm_r.start(0)
-# pwm1r = GPIO.PWM(38, 20000) #Right Motor, Reverse
-# pwm1r.start(0)
-pwm_l = GPIO.PWM(LEFT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Left Motor
-pwm_l.start(0)
-# pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
-# pwm2r.start(0)
 
 
 def set_PWM():
@@ -73,6 +55,7 @@ def set_PWM():
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
             sleep(MOTOR_SLEEP_TIME)
+        print(pwm_r, " -- ", pwm_l)
 
 def dummy_input():
     while True:
