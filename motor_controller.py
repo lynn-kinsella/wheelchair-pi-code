@@ -1,25 +1,30 @@
+import random
 import motor_utils
+from configuration_constants import *
 from state_enums import SpeedStates, AngleStates 
 
 from threading import Thread, Lock, Event
 from queue import Queue, Empty
 import RPi.GPIO as GPIO
 from time import sleep
+from pythonosc import osc_server, dispatcher
+from time import time
+from collections import deque
 
 
 """
 Shared Variables
 """
+# Top Level Communication Queues
 speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
 
-
-"""
-Wait Time between updates sent to the PWM
-"""
-UPDATE_PERIOD = 0.01
-
+# OSC Server internal synchronization variables
+shared_buffer_lock = Lock()
+shared_buffer_full = Event()
+shared_buffer = deque([], 200)
+last_osc_recieved_ts = 0
 
 '''
 Pin List - 3/8/23
@@ -32,35 +37,23 @@ Pin List - 3/8/23
 35 - Left Motor FWD PWM
 '''
 
-
-"""
-Pin Definitions
-"""
-LPWM_pin = 35 #Left 
-# LPWM_R = 40 
-RPWM_pin = 12 #Right Motor
-# RPWM_R = 38
-# Not using reverse, all reverse setup commented
-
-EN = 10
-
 """
 Initialize Pins
 """
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
-GPIO.setup(RPWM_pin, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(EN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(LPWM_pin, GPIO.OUT, initial = GPIO.LOW)
+GPIO.setup(RIGHT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
+GPIO.setup(MOTOR_ENABLE_PIN, GPIO.OUT, initial = GPIO.LOW)
+GPIO.setup(LEFT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
 # GPIO.setup(LPWM_R, GPIO.OUT, initial = GPIO.LOW)
 # GPIO.setup(RPWM_R, GPIO.OUT, initial = GPIO.LOW)
 
 # Set pins as PWM
-pwm_r = GPIO.PWM(RPWM_pin, 1000) #Right Motor
+pwm_r = GPIO.PWM(RIGHT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Right Motor
 pwm_r.start(0)
 # pwm1r = GPIO.PWM(38, 20000) #Right Motor, Reverse
 # pwm1r.start(0)
-pwm_l = GPIO.PWM(LPWM_pin, 1000) #Left Motor
+pwm_l = GPIO.PWM(LEFT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Left Motor
 pwm_l.start(0)
 # pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
 # pwm2r.start(0)
@@ -76,7 +69,7 @@ def set_PWM():
             pwm_r.ChangeDutyCycle(0)
             pwm_l.ChangeDutyCycle(0)
             output_enabled = False
-            GPIO.output(EN, output_enabled)
+            GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
         else:
             # Convert to PWM
             lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
@@ -84,19 +77,66 @@ def set_PWM():
             # Enable motor output
             if output_enabled == False:
                 output_enabled = True
-                GPIO.output(EN, output_enabled)
-                sleep(0.005)
+                GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
+                sleep(MOTOR_SLEEP_TIME)
 
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
 
-def dummy_input():
-    while True:
-        angle, speed = motor_utils.dummy_external_input()
 
+def eeg_handler(address: str,*args):
+    global last_osc_recieved_ts
+    global shared_buffer
+    timestamp = time.time_ns() 
+    # If the last signal recieved was over half a second ago, drop the current buffer contents
+    # if (timestamp > last_recieved + 500*1000):
+    #     shared_buffer = []
+    last_osc_recieved_ts = timestamp
+    data = [str(timestamp)]
+    if len(args) == 4: 
+        data += args
+        with shared_buffer_lock:
+            shared_buffer.appendleft(data)
+
+def dummy_prediction(dummy):
+    return random.choice([0,1,2])
+
+
+def osc_server_handler():
+    osc_dispatcher = dispatcher.Dispatcher()
+    osc_dispatcher.map("/muse/eeg", eeg_handler)
+
+    # server = osc_server.ThreadingOSCUDPServer((ip, port), dispatcher)
+    server = osc_server.BlockingOSCUDPServer((OSC_SERVER_IP, OSC_SERVER_PORT), osc_dispatcher)
+    print("Listening on UDP port "+str(OSC_SERVER_PORT))
+    server.serve_forever()
+
+
+def osc_input():
+    BCI_history = deque([], BCI_HISTORY_DEQUE_LENGTH)
+    prev_weighted_prediction = 0
+    while True:
+        
+        if len(shared_buffer < 200):
+            continue
+        else:
+            with shared_buffer_lock:
+                buffer_copy = list(shared_buffer)
+            prediction = dummy_prediction(buffer_copy)
+            BCI_history.appendleft(prediction)
+
+            hist_weighted_prediction = max([BCI_history.count(x) for x in [0,1,2]])
+            if prev_weighted_prediction != hist_weighted_prediction:
+                for i in range(len(BCI_history)//2):
+                    BCI_history.pop()
+
+            prev_weighted_prediction = hist_weighted_prediction
+            speed = hist_weighted_prediction
+            speed_input_queue.put(speed)
+
+        angle, dummy = motor_utils.dummy_external_input()                                  
         angle_input_queue.put(angle)
-        speed_input_queue.put(speed)
 
 
 def set_val_from_queue(old_val, q):
@@ -105,8 +145,8 @@ def set_val_from_queue(old_val, q):
     except Empty as e:
         return old_val
     
+
 def update_speed_state(state):
-    ACCELERATION_STEP = 0.1
     if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
         new_acceleration = state["accel"] - ACCELERATION_STEP
         if state["phase"] == SpeedStates.REST:
@@ -135,7 +175,7 @@ def update_speed_state(state):
 
 def update_angle_state(state):   
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*0.5 
+    new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
     new_angle = state["target"]
 
     state["previous"] = state["current"]
@@ -170,7 +210,8 @@ def periodic_update():
 
 if __name__ == "__main__":
     pwm_thread = Thread(target=set_PWM)
-    input_thread = Thread(target=dummy_input)
+    osc_thread = Thread(target=osc_server_handler)
+    input_thread = Thread(target=osc_input)
     state_thread = Thread(target=periodic_update)
 
     pwm_thread.start()
