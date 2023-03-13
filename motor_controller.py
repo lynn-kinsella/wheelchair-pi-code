@@ -107,13 +107,14 @@ def set_val_from_queue(old_val, q):
     
 def update_speed_state(state):
     ACCELERATION_STEP = 0.1
+    new_acceleration = 0
     if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
         new_acceleration = state["accel"] - ACCELERATION_STEP
         if state["phase"] == SpeedStates.REST:
             new_acceleration = min(0, new_acceleration)
         else:
             if state["speed"] == 0:
-                new_acceleration == 0
+                new_acceleration = 0
 
     elif state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] < 0):
         new_acceleration = state["accel"] + ACCELERATION_STEP
@@ -121,11 +122,11 @@ def update_speed_state(state):
             new_acceleration = max(0, new_acceleration)
         else:
             if state["speed"] == 0:
-                new_acceleration == 0
+                new_acceleration = 0
     
     state["accel"] = new_acceleration
 
-    new_speed += state["accel"]
+    new_speed = state["speed"] + state["accel"]
     new_speed = min(0, new_speed)
     new_speed = max(100, new_speed)
 
@@ -162,7 +163,7 @@ def periodic_update():
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
 
-        PWM_queue.put((angle_state["current"], speed_state["current"]))
+        PWM_queue.put((angle_state["current"], speed_state["speed"]))
 
         sleep(UPDATE_PERIOD)
 
