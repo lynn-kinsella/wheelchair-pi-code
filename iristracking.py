@@ -68,14 +68,19 @@ with mp_face_mesh.FaceMesh(
             right_offset = right_iris[0] - right_eye[0]
             offset = left_offset + right_offset
 
-            #print(offset)
+            if offset > 15:
+                offset = 15
+            if offset < -15:
+                offset = -15
 
-            if(offset < -OFFSET_THRESHOLD):
-                print("Left")
-            elif(offset > OFFSET_THRESHOLD):
-                print("Right")
-            else:
-                print("Straight")
+            print(offset)
+
+            # if(offset < -OFFSET_THRESHOLD):
+            #     print("Left")
+            # elif(offset > OFFSET_THRESHOLD):
+            #     print("Right")
+            # else:
+            #     print("Straight")
 
         cv.imshow('img', frame)
         key = cv.waitKey(1)
