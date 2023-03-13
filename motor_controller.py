@@ -11,6 +11,7 @@ from pythonosc import osc_server, dispatcher
 from time import time
 from collections import deque
 
+from tflite_runtime.interpreter import Interpreter
 
 """
 Shared Variables
@@ -25,6 +26,16 @@ shared_buffer_lock = Lock()
 shared_buffer_full = Event()
 shared_buffer = deque([], 200)
 last_osc_recieved_ts = 0
+
+interpreter = Interpreter('./eeg_prediction_model.tflite')
+# There is only 1 signature defined in the model,
+# so it will return it by default.
+# If there are multiple signatures then we can pass the name.
+model = interpreter.get_signature_runner()
+
+# 'output' is dictionary with all outputs from the inference.
+# In this case we have single output 'result'.
+print(output['result'])
 
 '''
 Pin List - 3/8/23
@@ -86,18 +97,9 @@ def set_PWM():
 
 
 def eeg_handler(address: str,*args):
-    global last_osc_recieved_ts
-    global shared_buffer
-    timestamp = time.time_ns() 
-    # If the last signal recieved was over half a second ago, drop the current buffer contents
-    # if (timestamp > last_recieved + 500*1000):
-    #     shared_buffer = []
-    last_osc_recieved_ts = timestamp
-    data = [str(timestamp)]
     if len(args) == 4: 
         data += args
-        with shared_buffer_lock:
-            shared_buffer.appendleft(data)
+        shared_buffer.appendleft(data)
 
 def dummy_prediction(dummy):
     return random.choice([0,1,2])
@@ -113,7 +115,7 @@ def osc_server_handler():
     server.serve_forever()
 
 
-def osc_input():
+def prediction_thread():
     BCI_history = deque([], BCI_HISTORY_DEQUE_LENGTH)
     prev_weighted_prediction = 0
     while True:
@@ -121,9 +123,10 @@ def osc_input():
         if len(shared_buffer < 200):
             continue
         else:
-            with shared_buffer_lock:
-                buffer_copy = list(shared_buffer)
-            prediction = dummy_prediction(buffer_copy)
+            data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
+            # my_signature is callable with input as arguments.
+            prediction = np.argmax(model(x=data)['result'])[0]
+            print(prediction)
             BCI_history.appendleft(prediction)
 
             hist_weighted_prediction = max([BCI_history.count(x) for x in [0,1,2]])
@@ -211,7 +214,7 @@ def periodic_update():
 if __name__ == "__main__":
     pwm_thread = Thread(target=set_PWM)
     osc_thread = Thread(target=osc_server_handler)
-    input_thread = Thread(target=osc_input)
+    input_thread = Thread(target=prediction_server)
     state_thread = Thread(target=periodic_update)
 
     pwm_thread.start()
