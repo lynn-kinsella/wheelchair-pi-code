@@ -93,7 +93,7 @@ def set_PWM():
 
 def dummy_input():
     while True:
-        angle, speed = motor_utils.dummy_external_input()
+        speed, angle = motor_utils.dummy_external_input()
 
         angle_input_queue.put(angle)
         speed_input_queue.put(speed)
