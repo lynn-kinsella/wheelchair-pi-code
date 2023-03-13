@@ -158,7 +158,7 @@ def periodic_update():
     }
     while True:
         angle_state["target"] = set_val_from_queue(angle_state["target"], angle_input_queue)
-        speed_state["phase"] = set_val_from_queue(speed_state["phase"], speed_input_queue)
+        speed_state["phase"] = SpeedStates(set_val_from_queue(speed_state["phase"], speed_input_queue))
 
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
