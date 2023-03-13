@@ -116,7 +116,7 @@ def update_speed_state(state):
             if state["speed"] == 0:
                 new_acceleration = 0
 
-    elif state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] < 0):
+    elif state["phase"] == SpeedStates.ACCEL or (state["phase"] == SpeedStates.REST and state["accel"] < 0):
         new_acceleration = state["accel"] + ACCELERATION_STEP
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
