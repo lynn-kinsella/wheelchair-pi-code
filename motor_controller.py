@@ -121,7 +121,7 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
         else:
-            if state["speed"] == 0:
+            if state["speed"] == 100:
                 new_acceleration = 0
     
     state["accel"] = new_acceleration
