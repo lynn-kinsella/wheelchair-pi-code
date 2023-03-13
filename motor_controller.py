@@ -114,7 +114,6 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = min(0, new_acceleration)
         else:
-            new_acceleration = state["accel"] - ACCELERATION_STEP
             if state["speed"] == 0:
                 new_acceleration = 0
 
