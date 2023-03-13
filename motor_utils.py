@@ -26,8 +26,8 @@ def dummy_external_input():
 
 def test():
     angle = input("Enter angle (rads, -1.57 to 1.57): ")
-    speed = input("Enter speed (0-100): ")
-    print(motor_map(float(angle), float(speed)))
+    speed = input("Enter acceleration (1, 0, -1): ")
+    print(motor_map(float(angle), int(speed)))
 
 if __name__ == "__main__":
     test()

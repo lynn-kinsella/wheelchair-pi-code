@@ -127,8 +127,8 @@ def update_speed_state(state):
     state["accel"] = new_acceleration
 
     new_speed = state["speed"] + state["accel"]
-    new_speed = min(0, new_speed)
-    new_speed = max(100, new_speed)
+    new_speed = min(100, new_speed)
+    new_speed = max(0, new_speed)
 
     state["speed"] = new_speed
     return state
