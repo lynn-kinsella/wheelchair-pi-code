@@ -1,4 +1,5 @@
 import motor_utils
+from state_enums import SpeedStates, AngleStates 
 
 from threading import Thread, Lock, Event
 from queue import Queue, Empty
@@ -105,24 +106,37 @@ def set_val_from_queue(old_val, q):
         return old_val
     
 def update_speed_state(state):
-    diff = state["target"] - state["current"]
-    new_speed = state["current"] + diff*0.01
+    ACCELERATION_STEP = 0.1
+    if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
+        new_acceleration = state["accel"] - ACCELERATION_STEP
+        if state["phase"] == SpeedStates.REST:
+            new_acceleration = min(0, new_acceleration)
+        else:
+            if state["speed"] == 0:
+                new_acceleration == 0
 
-
-
+    elif state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] < 0):
+        new_acceleration = state["accel"] + ACCELERATION_STEP
+        if state["phase"] == SpeedStates.REST:
+            new_acceleration = max(0, new_acceleration)
+        else:
+            if state["speed"] == 0:
+                new_acceleration == 0
     
-    state["previous"] = state["current"]
-    state["current"] = new_speed
+    state["accel"] = new_acceleration
+
+    new_speed += state["accel"]
+    new_speed = min(0, new_speed)
+    new_speed = max(100, new_speed)
+
+    state["speed"] = new_speed
     return state
 
 
 def update_angle_state(state):   
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*0.01 
+    new_angle = state["current"] + diff*0.5 
     new_angle = state["target"]
-
-
-
 
     state["previous"] = state["current"]
     state["current"] = new_angle
@@ -134,17 +148,16 @@ def periodic_update():
         "current": 0,
         "previous": 0,
         "target": 0,
-        "phase": 0
+        "phase": AngleStates.REST
     }
     speed_state = {
-        "current": 0,
-        "previous": 0,
-        "target": 0,
-        "phase":0
+        "speed": 0,
+        "accel": 0,
+        "phase": SpeedStates.REST
     }
     while True:
         angle_state["target"] = set_val_from_queue(angle_state["target"], angle_input_queue)
-        speed_state["target"] = set_val_from_queue(speed_state["target"], speed_input_queue)
+        speed_state["phase"] = set_val_from_queue(speed_state["phase"], speed_input_queue)
 
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
