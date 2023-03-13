@@ -85,11 +85,12 @@ def set_PWM():
             if output_enabled == False:
                 output_enabled = True
                 GPIO.output(EN, output_enabled)
-                sleep(0.005)
+                sleep(0.01)
 
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
+            sleep(0.01)
 
 def dummy_input():
     while True:
@@ -109,9 +110,8 @@ def update_speed_state(state):
     ACCELERATION_STEP = 0.1
     new_acceleration = 0
     if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
+        new_acceleration = state["accel"] - ACCELERATION_STEP
         if state["phase"] == SpeedStates.REST:
-            if state["speed"] < 25:
-                new_acceleration = ACCELERATION_STEP*5
             new_acceleration = min(0, new_acceleration)
         else:
             new_acceleration = state["accel"] - ACCELERATION_STEP
