@@ -116,7 +116,7 @@ def prediction_server():
     prev_weighted_prediction = 0
     while True:
         
-        if shared_buffer.not_full():
+        if shared_buffer.not_full:
             continue
         else:
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
