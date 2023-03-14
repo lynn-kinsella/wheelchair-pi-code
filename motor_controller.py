@@ -12,6 +12,7 @@ from time import time
 from collections import deque
 
 import tensorflow as tf
+import numpy as np
 
 """
 Shared Variables
