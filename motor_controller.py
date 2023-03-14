@@ -131,6 +131,7 @@ def prediction_server():
             prev_weighted_prediction = hist_weighted_prediction
             speed = hist_weighted_prediction
             speed_input_queue.put(speed)
+            print(speed)
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
         angle = 0
@@ -208,12 +209,12 @@ def periodic_update():
         
 
 if __name__ == "__main__":
-    #pwm_thread = Thread(target=set_PWM)
+    pwm_thread = Thread(target=set_PWM)
     osc_thread = Thread(target=osc_server_handler)
     input_thread = Thread(target=prediction_server)
-    #state_thread = Thread(target=periodic_update)
+    state_thread = Thread(target=periodic_update)
 
-    #pwm_thread.start()
+    pwm_thread.start()
     osc_thread.start()
     input_thread.start()
-    #state_thread.start()
+    state_thread.start()
