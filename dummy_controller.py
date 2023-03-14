@@ -102,7 +102,6 @@ def update_speed_state(state):
 def update_angle_state(state):   
     diff = state["target"] - state["current"]
     new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
-    new_angle = state["target"]
 
     state["previous"] = state["current"]
     state["current"] = new_angle
@@ -135,10 +134,14 @@ def periodic_update():
         
 
 if __name__ == "__main__":
-    pwm_thread = Thread(target=set_PWM)
-    input_thread = Thread(target=dummy_input)
-    state_thread = Thread(target=periodic_update)
+    pwm_thread = Thread(target=set_PWM, daemon=True)
+    input_thread = Thread(target=dummy_input, daemon=True)
+    state_thread = Thread(target=periodic_update, daemon=True)
 
     pwm_thread.start()
     input_thread.start()
     state_thread.start()
+
+    pwm_thread.join()
+    input_thread.join()
+    state_thread.join()

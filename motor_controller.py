@@ -119,7 +119,6 @@ def update_speed_state(state):
 def update_angle_state(state):   
     diff = state["target"] - state["current"]
     new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
-    new_angle = state["target"]
 
     state["previous"] = state["current"]
     state["current"] = new_angle
