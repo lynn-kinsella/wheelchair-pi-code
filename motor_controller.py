@@ -27,7 +27,7 @@ shared_buffer_full = Event()
 shared_buffer = deque([], 200)
 last_osc_recieved_ts = 0
 
-tf_model = tf.keras.models.load_model(".")
+tf_model = tf.keras.models.load_model("attempt15.h5")
 
 '''
 Pin List - 3/8/23
