@@ -23,7 +23,7 @@ angle_input_queue = Queue()
 PWM_queue = Queue()
 
 # OSC Server internal synchronization variables
-shared_buffer = Queue()
+shared_buffer = Queue(maxsize=400)
 last_osc_recieved_ts = 0
 
 tf_model = tf.keras.models.load_model("./model_saved")
@@ -115,8 +115,7 @@ def prediction_server():
     BCI_history = deque([], BCI_HISTORY_DEQUE_LENGTH)
     prev_weighted_prediction = 0
     while True:
-        
-        if shared_buffer.not_full:
+        if not shared_buffer.full():
             continue
         else:
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
@@ -133,7 +132,7 @@ def prediction_server():
             speed = hist_weighted_prediction
             speed_input_queue.put(speed)
 
-        angle, dummy = motor_utils.dummy_external_input()                                  
+        #angle, dummy = motor_utils.dummy_external_input()                                  
         angle_input_queue.put(angle)
 
 
