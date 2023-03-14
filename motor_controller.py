@@ -112,7 +112,7 @@ def osc_server_handler():
 
 
 def prediction_server():
-    BCI_history = deque([], BCI_HISTORY_DEQUE_LENGTH)
+    BCI_history = Queue(maxsize=100)
     prev_weighted_prediction = 0
     while True:
         if not shared_buffer.full():
@@ -123,10 +123,13 @@ def prediction_server():
             print(prediction)
             BCI_history.appendleft(prediction)
 
-            hist_weighted_prediction = max([BCI_history.count(x) for x in [0,1,2]])
-            if prev_weighted_prediction != hist_weighted_prediction:
-                for i in range(len(BCI_history)//2):
-                    BCI_history.pop()
+            if BCI_history.full():
+                BCI_history.get()
+            BCI_history.put(prediction)
+            hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
+            #if prev_weighted_prediction != hist_weighted_prediction:
+            #    for i in range(len(BCI_history)//2):
+            #        BCI_history.pop()
 
             prev_weighted_prediction = hist_weighted_prediction
             speed = hist_weighted_prediction
