@@ -23,8 +23,12 @@ angle_input_queue = Queue()
 PWM_queue = Queue()
 
 # OSC Server internal synchronization variables
-shared_buffer = Queue(maxsize=400)
+PREDICT_WINDOW = 400
+shared_buffer = Queue(maxsize=PREDICT_WINDOW)
 last_osc_recieved_ts = 0
+
+# Signal smoothing constant
+SMOOTHING_WINDOW = 50
 
 tf_model = tf.keras.models.load_model("./model_saved")
 
@@ -112,7 +116,7 @@ def osc_server_handler():
 
 
 def prediction_server():
-    BCI_history = Queue(maxsize=100)
+    BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
     while True:
         if not shared_buffer.full():
@@ -120,7 +124,6 @@ def prediction_server():
         else:
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
-            print(prediction)
 
             # using queue instead
             if BCI_history.full():
@@ -133,9 +136,9 @@ def prediction_server():
             #        BCI_history.pop()
 
             prev_weighted_prediction = hist_weighted_prediction
-            speed = hist_weighted_prediction
-            speed_input_queue.put(speed)
-            print(speed)
+            speed_pred = hist_weighted_prediction
+            speed_input_queue.put(speed_pred)
+            print(speed_pred)
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
         angle = 0
