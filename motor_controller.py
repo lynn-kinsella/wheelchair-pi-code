@@ -121,11 +121,12 @@ def prediction_server():
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
             print(prediction)
-            BCI_history.appendleft(prediction)
 
+            # using queue instead
             if BCI_history.full():
                 BCI_history.get()
             BCI_history.put(prediction)
+
             hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
             #if prev_weighted_prediction != hist_weighted_prediction:
             #    for i in range(len(BCI_history)//2):
