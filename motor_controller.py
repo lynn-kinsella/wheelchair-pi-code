@@ -23,9 +23,7 @@ angle_input_queue = Queue()
 PWM_queue = Queue()
 
 # OSC Server internal synchronization variables
-shared_buffer_lock = Lock()
-shared_buffer_full = Event()
-shared_buffer = deque([], 200)
+shared_buffer = Queue()
 last_osc_recieved_ts = 0
 
 tf_model = tf.keras.models.load_model("./model_saved")
@@ -95,7 +93,9 @@ def dummy_input():
 
 def eeg_handler(address: str,*args):
     if len(args) == 4: 
-        shared_buffer.appendleft(args)
+        if shared_buffer.full():
+            shared_buffer.get()
+        shared_buffer.push(args)
 
 def dummy_prediction(dummy):
     return random.choice([0,1,2])
@@ -116,7 +116,7 @@ def prediction_server():
     prev_weighted_prediction = 0
     while True:
         
-        if len(shared_buffer) < 200:
+        if shared_buffer.not_full():
             continue
         else:
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
