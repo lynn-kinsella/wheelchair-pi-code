@@ -94,8 +94,7 @@ def dummy_input():
 
 def eeg_handler(address: str,*args):
     if len(args) == 4: 
-        data += args
-        shared_buffer.appendleft(data)
+        shared_buffer.appendleft(args)
 
 def dummy_prediction(dummy):
     return random.choice([0,1,2])
