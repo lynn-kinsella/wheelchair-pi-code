@@ -133,6 +133,7 @@ def prediction_server():
             speed_input_queue.put(speed)
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
+        angle = 0
         angle_input_queue.put(angle)
 
 
