@@ -111,7 +111,7 @@ def osc_server_handler():
     server.serve_forever()
 
 
-def prediction_thread():
+def prediction_server():
     BCI_history = deque([], BCI_HISTORY_DEQUE_LENGTH)
     prev_weighted_prediction = 0
     while True:
