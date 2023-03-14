@@ -27,7 +27,7 @@ shared_buffer_full = Event()
 shared_buffer = deque([], 200)
 last_osc_recieved_ts = 0
 
-tf_model = tf.keras.models.load_model("./model_saved")
+#tf_model = tf.keras.models.load_model("./model_saved")
 
 '''
 Pin List - 3/8/23
@@ -207,11 +207,12 @@ def periodic_update():
         
 
 if __name__ == "__main__":
-    pwm_thread = Thread(target=set_PWM)
+    #pwm_thread = Thread(target=set_PWM)
     osc_thread = Thread(target=osc_server_handler)
-    input_thread = Thread(target=prediction_server)
-    state_thread = Thread(target=periodic_update)
+    #input_thread = Thread(target=prediction_server)
+    #state_thread = Thread(target=periodic_update)
 
-    pwm_thread.start()
-    input_thread.start()
-    state_thread.start()
+    #pwm_thread.start()
+    osc_thread.start()
+    #input_thread.start()
+    #state_thread.start()
