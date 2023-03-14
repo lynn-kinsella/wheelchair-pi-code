@@ -11,7 +11,7 @@ from pythonosc import osc_server, dispatcher
 from time import time
 from collections import deque
 
-from tflite_runtime.interpreter import Interpreter
+import tensorflow as tf
 
 """
 Shared Variables
@@ -27,15 +27,7 @@ shared_buffer_full = Event()
 shared_buffer = deque([], 200)
 last_osc_recieved_ts = 0
 
-interpreter = Interpreter('./eeg_prediction_model.tflite')
-# There is only 1 signature defined in the model,
-# so it will return it by default.
-# If there are multiple signatures then we can pass the name.
-model = interpreter.get_signature_runner()
-
-# 'output' is dictionary with all outputs from the inference.
-# In this case we have single output 'result'.
-print(output['result'])
+tf_model = tf.keras.models.load_model(".")
 
 '''
 Pin List - 3/8/23
@@ -124,9 +116,7 @@ def prediction_thread():
             continue
         else:
             data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
-            # my_signature is callable with input as arguments.
-            prediction = np.argmax(model(x=data)['result'])[0]
-            print(prediction)
+            prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
             BCI_history.appendleft(prediction)
 
             hist_weighted_prediction = max([BCI_history.count(x) for x in [0,1,2]])
