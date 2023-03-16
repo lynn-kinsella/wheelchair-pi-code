@@ -1,8 +1,9 @@
 from enum import Enum
 class SpeedStates (Enum):
-    REST = 0
+    DECCEL = 0
     ACCEL = 1
-    DECCEL = -1
+    REST = 4
+    DISCONNECTED = 5
 
 class AngleStates (Enum):
     REST = 0

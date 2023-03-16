@@ -7,6 +7,7 @@ from threading import Thread, Lock, Event
 from queue import Queue, Empty
 import RPi.GPIO as GPIO
 from time import sleep
+import os
 from pythonosc import osc_server, dispatcher
 from time import time
 from collections import deque
@@ -22,15 +23,13 @@ speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
 
-# OSC Server internal synchronization variables
-PREDICT_WINDOW = 400
+# OSC Server internal synchronization variables+
 shared_buffer = Queue(maxsize=PREDICT_WINDOW)
-last_osc_recieved_ts = 0
 
-# Signal smoothing constant
-SMOOTHING_WINDOW = 50
-
-tf_model = tf.keras.models.load_model("./model_saved")
+if os.environ["INPUT_MODE"] == "LIVE":
+    tf_model = tf.keras.models.load_model("./model_saved")
+else:
+    tf_model = None
 
 '''
 Pin List - 3/8/23
@@ -95,11 +94,13 @@ def dummy_input():
     while True:
         speed, angle = motor_utils.dummy_external_input()
 
+
 def eeg_handler(address: str,*args):
     if len(args) == 4: 
         if shared_buffer.full():
             shared_buffer.get()
         shared_buffer.put(args)
+
 
 def dummy_prediction(dummy):
     return random.choice([0,1,2])
@@ -147,7 +148,10 @@ def prediction_server():
 
 def set_val_from_queue(old_val, q):
     try:
-        return q.get(False)
+        val = q.get(False)
+        if val == SpeedStates.DISCONNECTED:
+            val = old_val
+        return val
     except Empty as e:
         return old_val
     
@@ -213,15 +217,21 @@ def periodic_update():
 
         sleep(UPDATE_PERIOD)
 
-        
 
 if __name__ == "__main__":
+    thread_list = []
     pwm_thread = Thread(target=set_PWM)
-    osc_thread = Thread(target=osc_server_handler)
-    input_thread = Thread(target=prediction_server)
+    thread_list.append(pwm_thread)
+    if os.environ["INPUT_MODE"] == "LIVE":
+        osc_thread = Thread(target=osc_server_handler)
+        thread_list.append(osc_thread)
+        prediction_thread = Thread(target=prediction_server)
+        thread_list.append(prediction_thread)
+    else:
+        dummy_thread = Thread(target=dummy_input)
+        thread_list.append(dummy_thread)
     state_thread = Thread(target=periodic_update)
+    thread_list.append(state_thread)
 
-    pwm_thread.start()
-    osc_thread.start()
-    input_thread.start()
-    state_thread.start()
+    for thread in thread_list:
+        thread.start()

@@ -6,6 +6,12 @@ from threading import Thread, Lock, Event
 from queue import Queue, Empty
 from time import sleep
 
+from pythonosc import osc_server, dispatcher
+
+import os
+import numpy as np
+import tensorflow as tf
+
 class Motor:
     def __init__(self, dc=0):
         self.pwm = dc
@@ -29,6 +35,13 @@ speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
 
+# OSC Server internal synchronization variables
+shared_buffer = Queue(maxsize=PREDICT_WINDOW)
+
+if os.environ["INPUT_MODE"] == "LIVE":
+    tf_model = tf.keras.models.load_model("./model_saved")
+else:
+    tf_model = None
 
 def set_PWM():
     output_enabled = False
@@ -55,7 +68,8 @@ def set_PWM():
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
             sleep(MOTOR_SLEEP_TIME)
-        print(pwm_r, " -- ", pwm_l)
+        # print(pwm_r, " -- ", pwm_l)
+
 
 def dummy_input():
     while True:
@@ -65,12 +79,63 @@ def dummy_input():
         speed_input_queue.put(speed)
 
 
+def eeg_handler(address: str,*args):
+    if len(args) == 4: 
+        if shared_buffer.full():
+            shared_buffer.get()
+        shared_buffer.put(args)
+
+
+def osc_server_handler():
+    osc_dispatcher = dispatcher.Dispatcher()
+    osc_dispatcher.map("/muse/eeg", eeg_handler)
+
+    # server = osc_server.ThreadingOSCUDPServer((ip, port), dispatcher)
+    server = osc_server.BlockingOSCUDPServer((OSC_SERVER_IP, OSC_SERVER_PORT), osc_dispatcher)
+    print("Listening on UDP port "+str(OSC_SERVER_PORT))
+    server.serve_forever()
+
+
+def prediction_server():
+    BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
+    prev_weighted_prediction = 0
+    while True:
+        if not shared_buffer.full():
+            continue
+        else:
+            data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
+            prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
+
+            # using queue instead
+            if BCI_history.full():
+                BCI_history.get()
+            BCI_history.put(prediction)
+
+            hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
+            #if prev_weighted_prediction != hist_weighted_prediction:
+            #    for i in range(len(BCI_history)//2):
+            #        BCI_history.pop()
+
+            prev_weighted_prediction = hist_weighted_prediction
+            speed_pred = hist_weighted_prediction
+            speed_input_queue.put(speed_pred)
+            print(speed_pred)
+
+        #angle, dummy = motor_utils.dummy_external_input()                                  
+        angle = 0
+        angle_input_queue.put(angle)
+
+
 def set_val_from_queue(old_val, q):
     try:
-        return q.get(False)
+        val = q.get(False)
+        if val == SpeedStates.DISCONNECTED:
+            val = old_val
+        return val
     except Empty as e:
         return old_val
     
+
 def update_speed_state(state):
     new_acceleration = 0
     if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
@@ -130,18 +195,25 @@ def periodic_update():
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
 
         sleep(UPDATE_PERIOD)
-
         
 
 if __name__ == "__main__":
-    pwm_thread = Thread(target=set_PWM, daemon=True)
-    input_thread = Thread(target=dummy_input, daemon=True)
-    state_thread = Thread(target=periodic_update, daemon=True)
+    thread_list = []
+    pwm_thread = Thread(target=set_PWM)
+    thread_list.append(pwm_thread)
 
-    pwm_thread.start()
-    input_thread.start()
-    state_thread.start()
+    if os.environ["INPUT_MODE"] == "LIVE":
+        osc_thread = Thread(target=osc_server_handler)
+        thread_list.append(osc_thread)
+        prediction_thread = Thread(target=prediction_server)
+        thread_list.append(prediction_thread)
 
-    pwm_thread.join()
-    input_thread.join()
-    state_thread.join()
+    else:
+        dummy_thread = Thread(target=dummy_input)
+        thread_list.append(dummy_thread)
+
+    state_thread = Thread(target=periodic_update)
+    thread_list.append(state_thread)
+
+    for thread in thread_list:
+        thread.start()
