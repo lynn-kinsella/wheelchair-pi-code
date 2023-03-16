@@ -98,6 +98,7 @@ def dummy_input():
 
 
 def eeg_handler(address: str,*args):
+    global last_full
     
     if len(args) == 4: 
         now = time()
