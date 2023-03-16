@@ -159,7 +159,7 @@ def set_val_from_queue(old_val, q):
 def update_speed_state(state):
     new_acceleration = 0
     if state["phase"] == SpeedStates.DECCEL or (state["phase"] == SpeedStates.REST and state["accel"] > 0):
-        new_acceleration = state["accel"] - ACCELERATION_STEP
+        new_acceleration = state["accel"] - DECCELERATION_STEP
         if state["phase"] == SpeedStates.REST:
             new_acceleration = min(0, new_acceleration)
         else:
