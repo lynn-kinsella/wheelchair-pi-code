@@ -98,17 +98,15 @@ def dummy_input():
 
 
 def eeg_handler(address: str,*args):
+    now = time()
+    delta = now-last_full
+    last_full = now
+
+    if (delta > 5):  
+        print("shared buffer full @", delta)
     
     if len(args) == 4: 
-        now = time()
-        delta = now-last_full
-        last_full = now
-
-        if (delta > 20):  
-            print("Time delta: ", delta*1000)
-
         if shared_buffer.full():
-            print("Buffer Full")
             shared_buffer.get()
         shared_buffer.put(args)
 

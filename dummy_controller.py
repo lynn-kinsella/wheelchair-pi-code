@@ -5,7 +5,6 @@ from state_enums import SpeedStates, AngleStates
 from threading import Thread, Lock, Event
 from queue import Queue, Empty
 from time import sleep
-from time import time
 
 from pythonosc import osc_server, dispatcher
 
@@ -44,8 +43,6 @@ if os.environ["INPUT_MODE"] == "LIVE":
 else:
     tf_model = None
 
-last_full = 0 
-
 def set_PWM():
     output_enabled = False
     while True:
@@ -71,7 +68,7 @@ def set_PWM():
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
             sleep(MOTOR_SLEEP_TIME)
-        # print(pwm_r, " -- ", pwm_l)
+        print(pwm_r, " -- ", pwm_l)
 
 
 def dummy_input():
@@ -83,16 +80,7 @@ def dummy_input():
 
 
 def eeg_handler(address: str,*args):
-    global last_full
-    
-
     if len(args) == 4: 
-        now = time()
-        delta = now-last_full
-        last_full = now
-
-        if (delta > 20):  
-            print("shared buffer full @", delta*1000)
         if shared_buffer.full():
             shared_buffer.get()
         shared_buffer.put(args)
