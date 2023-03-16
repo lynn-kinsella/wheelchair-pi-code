@@ -68,7 +68,7 @@ def set_PWM():
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
             sleep(MOTOR_SLEEP_TIME)
-        print(pwm_r, " -- ", pwm_l)
+        # print(pwm_r, " -- ", pwm_l)
 
 
 def dummy_input():

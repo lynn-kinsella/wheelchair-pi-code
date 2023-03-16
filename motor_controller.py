@@ -63,8 +63,6 @@ pwm_l.start(0)
 # pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
 # pwm2r.start(0)
 
-last_full = 0 
-
 
 def set_PWM():
     output_enabled = False
@@ -98,13 +96,6 @@ def dummy_input():
 
 
 def eeg_handler(address: str,*args):
-    now = time()
-    delta = now-last_full
-    last_full = now
-
-    if (delta > 5):  
-        print("shared buffer full @", delta)
-    
     if len(args) == 4: 
         if shared_buffer.full():
             shared_buffer.get()
