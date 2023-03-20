@@ -11,6 +11,8 @@ from pythonosc import osc_server, dispatcher
 import os
 import numpy as np
 import tensorflow as tf
+import cv2 as cv
+import mediapipe as mp 
 
 class Motor:
     def __init__(self, dc=0):
@@ -31,6 +33,7 @@ pwm_r = Motor()
 """
 Shared Variables
 """
+video_frame_queue = Queue()
 speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
@@ -126,6 +129,66 @@ def prediction_server():
         angle_input_queue.put(angle)
 
 
+def tcp_receiver():
+    print("Connecting to tcp video stream")
+    cap = cv.VideoCapture('tcp://MM.local:3333')
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error reading frame")
+            sleep(1/24)
+            continue
+        frame = cv.flip(frame, 1)
+        rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        video_frame_queue.put(rgb_frame)
+        
+
+def eye_tracking():
+    mp_face_mesh = mp.solutions.face_mesh
+    with mp_face_mesh.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+    ) as face_mesh:
+        while True:
+            frame = video_frame_queue.get()
+            img_h, img_w = frame.shape[:2]
+            results = face_mesh.process(frame)
+
+            if results.multi_face_landmarks:
+                # Get Mesh Points
+                mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+                
+                # Calculate Iris Position
+                (l_ix, l_iy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_IRIS])
+                (r_ix, r_iy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_IRIS])
+                left_iris = np.array([l_ix, l_iy], dtype=np.int32)
+                right_iris = np.array([r_ix, r_iy], dtype=np.int32)
+                #print("Iris: {}{}", left_iris, right_iris)
+
+                # Calculate Eye Position
+                (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_CENTRE])
+                (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_CENTRE])
+                left_eye = np.array([l_cx, l_cy], dtype=np.int32)
+                right_eye = np.array([r_cx, r_cy], dtype=np.int32)
+                #print("Eye: {}{}", left_eye, right_eye)
+
+                # Compute Direction
+                left_offset = left_iris[0] - left_eye[0]      
+                right_offset = right_iris[0] - right_eye[0]
+                offset = left_offset + right_offset
+
+                if offset > 15:
+                    offset = 15
+                if offset < -15:
+                    offset = -15
+
+                angle_input_queue.put(offset/15*100)
+            
+        
+
+
 def set_val_from_queue(old_val, q):
     try:
         val = q.get(False)
@@ -206,6 +269,11 @@ if __name__ == "__main__":
     thread_list.append(pwm_thread)
 
     if os.environ["INPUT_MODE"] == "LIVE":
+        tcp_rx_thread = Thread(target=tcp_receiver)
+        thread_list.append(tcp_rx_thread)
+        eye_tracking_thread = Thread(target=eye_tracking)
+        thread_list.append(eye_tracking_thread)
+
         osc_thread = Thread(target=osc_server_handler)
         thread_list.append(osc_thread)
         prediction_thread = Thread(target=prediction_server)
