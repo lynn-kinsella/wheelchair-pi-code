@@ -17,7 +17,7 @@ OFFSET_THRESHOLD = 5
 
 address = 'tcp://MM.local:3333'
 print("Connecting to tcp video stream")
-cap = cv.VideoCapture(0)
+cap = cv.VideoCapture(address)
 #Add a check to see if stream is opened correctly
 with mp_face_mesh.FaceMesh(
     max_num_faces=1,

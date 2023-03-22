@@ -191,7 +191,6 @@ def eye_tracking():
 
                 print(angle, counter)
                 counter += 1
-                sleep(0.1)
 
                 angle_input_queue.put(angle)
 
@@ -239,7 +238,7 @@ def update_angle_state(state):
     diff = state["target"] - state["current"]
     step = 0
     if diff > 0:
-        step = 0.1
+        step = 0.1 
         step = min(abs(diff), step) 
         step *= diff/abs(diff) 
 
