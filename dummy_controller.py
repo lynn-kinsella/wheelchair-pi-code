@@ -269,7 +269,7 @@ def periodic_update():
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
 
-        print(angle_state["current"])
+        # print(angle_state["current"])
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
 
