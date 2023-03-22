@@ -238,19 +238,56 @@ def update_speed_state(state):
 
 
 def update_angle_state(state):   
+    
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
 
-    state["previous"] = state["current"]
-    state["current"] = new_angle
+    if abs(diff) < 5:
+        state["mode"] = 0
+        state["current"] = state["target"]
+        return state
+    elif diff > 0:
+        if state["mode"] != 1:
+            state["speedup_counter"] = 0
+        state["mode"] = 1
+    elif diff < 0:
+        if state["mode"] != -1:
+            state["speedup_counter"] = 0
+        state["mode"] = -1
+    
+    # new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
+
+    # Increasing Case
+    if state["mode"] == 1:
+        
+        # step = angle_factor * a*(inv_dist + b)/((a*(inv_dist + b))**2 + c) + d
+        step = 0.01 * state["speedup_counter"] ** 2
+        if step < 10:
+            state["speedup_counter"] += 1
+        else:
+            step = 10
+        step = min(diff, step) 
+
+    # Decreasing Case
+    if state["mode"] == -1:
+        # step = -angle_factor * a*(inv_diff + b)/((a*(inv_diff + b))**2 + c) + d
+        
+        step = -0.01 * state["speedup_counter"] **2
+        if step < 10:
+            state["speedup_counter"] += 1
+        else:
+            step = -10
+        step = max(diff, step) 
+
+    state["current"] = state["current"] + step
     return state
 
 
 def periodic_update():
     angle_state = {
         "current": 0,
-        "previous": 0,
+        "mode": 0,
         "target": 0,
+        "speedup_counter": 0,
         "phase": AngleStates.REST
     }
     speed_state = {
