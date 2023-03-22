@@ -43,8 +43,11 @@ shared_buffer = Queue(maxsize=PREDICT_WINDOW)
 
 if os.environ["INPUT_MODE"] == "LIVE":
     tf_model = tf.keras.models.load_model("./model_saved")
+    mp_face_mesh = mp.solutions.face_mesh
 else:
     tf_model = None
+    mp_face_mesh = None
+
 
 def set_PWM():
     output_enabled = False
@@ -136,7 +139,6 @@ def tcp_receiver():
         ret, frame = cap.read()
         if not ret:
             print("Error reading frame")
-            sleep(1/24)
             continue
         frame = cv.flip(frame, 1)
         rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
@@ -144,12 +146,11 @@ def tcp_receiver():
         
 
 def eye_tracking():
-    mp_face_mesh = mp.solutions.face_mesh
     with mp_face_mesh.FaceMesh(
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+        max_num_faces=1,
+        refine_landmarks=True,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
     ) as face_mesh:
         while True:
             frame = video_frame_queue.get()
@@ -160,43 +161,37 @@ def eye_tracking():
                 # Get Mesh Points
                 mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
                 
-                # Calculate Iris Position
-                (l_ix, l_iy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_IRIS])
-                (r_ix, r_iy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_IRIS])
-                left_iris = np.array([l_ix, l_iy], dtype=np.int32)
-                right_iris = np.array([r_ix, r_iy], dtype=np.int32)
-                #print("Iris: {}{}", left_iris, right_iris)
+                left_iris_points = mesh_points[LEFT_IRIS]
+                right_iris_points = mesh_points[RIGHT_IRIS]
 
-                # Calculate Eye Position
-                (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_CENTRE])
-                (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_CENTRE])
-                left_eye = np.array([l_cx, l_cy], dtype=np.int32)
-                right_eye = np.array([r_cx, r_cy], dtype=np.int32)
-                #print("Eye: {}{}", left_eye, right_eye)
+                left_iris = left_iris_points[0][0] + left_iris_points[1][0] + left_iris_points[2][0] + left_iris_points[3][0]
+                left_iris = left_iris//4
+                right_iris = right_iris_points[0][0] + right_iris_points[1][0] + right_iris_points[2][0] + right_iris_points[3][0]
+                right_iris = right_iris//4
 
-                # Compute Direction
-                left_offset = left_iris[0] - left_eye[0]      
-                right_offset = right_iris[0] - right_eye[0]
-                offset = left_offset + right_offset
+                ### Calculate Eye Corners
+                lcorners = mesh_points[LEFT_CORNERS]
+                lcorners = [lcorners[0][0], lcorners[1][0]]
+                rcorners = mesh_points[RIGHT_CORNERS]
+                rcorners = [rcorners[0][0], rcorners[1][0]]
 
-                if offset > 15:
-                    offset = 15
-                if offset < -15:
-                    offset = -15
+                # Calculate angle
+                # Represented as % of distance the centre of iris is from left corner to right corner of eye
+                total_dist = lcorners[1] - lcorners[0] + rcorners[1] - rcorners[0]
+                offset = left_iris - lcorners[0] + right_iris - rcorners[0]
+                angle = offset/total_dist
 
-                # angle = offset/15*100//10
-                angle = offset/15*100
-
-                if angle > -45/2 and angle < 45/2:
+                if angle < .53 and angle > .47:
                     angle = 0
-                elif angle <= -45/2:
-                    angle = -45
-                elif angle >= 45/2:
-                    angle = 45
+                elif angle >= .53:
+                    angle = 50
+                elif angle <= 0.47:
+                    angle = -50
+
+                print(angle)
+                sleep(0.1)
 
                 angle_input_queue.put(angle)
-            
-        
 
 
 def set_val_from_queue(old_val, q):
@@ -240,43 +235,9 @@ def update_speed_state(state):
 def update_angle_state(state):   
     
     diff = state["target"] - state["current"]
-
-    if abs(diff) < 5:
-        state["mode"] = 0
-        state["current"] = state["target"]
-        return state
-    elif diff > 0:
-        if state["mode"] != 1:
-            state["speedup_counter"] = 0
-        state["mode"] = 1
-    elif diff < 0:
-        if state["mode"] != -1:
-            state["speedup_counter"] = 0
-        state["mode"] = -1
-    
-    # new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
-
-    # Increasing Case
-    if state["mode"] == 1:
-        
-        # step = angle_factor * a*(inv_dist + b)/((a*(inv_dist + b))**2 + c) + d
-        step = 0.01 * state["speedup_counter"] ** 2
-        if step < 10:
-            state["speedup_counter"] += 1
-        else:
-            step = 10
-        step = min(diff, step) 
-
-    # Decreasing Case
-    if state["mode"] == -1:
-        # step = -angle_factor * a*(inv_diff + b)/((a*(inv_diff + b))**2 + c) + d
-        
-        step = -0.01 * state["speedup_counter"] **2
-        if step < 10:
-            state["speedup_counter"] += 1
-        else:
-            step = -10
-        step = max(diff, step) 
+    step = 0.1
+    step = min(abs(diff), step) 
+    step *= diff/abs(diff) 
 
     state["current"] = state["current"] + step
     return state
