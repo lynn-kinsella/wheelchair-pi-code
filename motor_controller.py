@@ -223,8 +223,8 @@ if __name__ == "__main__":
     shared_buffer = Manager().list()
 
     process_list = []
-    pwm_process = Process(target=set_PWM, args=(PWM_queue,))
-    process_list.append(pwm_process)
+    #pwm_process = Process(target=set_PWM, args=(PWM_queue,))
+    #process_list.append(pwm_process)
 
     if os.environ["INPUT_MODE"] == "LIVE":
         osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
@@ -241,6 +241,8 @@ if __name__ == "__main__":
 
     for process in process_list:
         process.start()
+
+    set_PWM(PWM_queue)
 
     for process in process_list:
         process.join()
