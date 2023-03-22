@@ -58,10 +58,10 @@ with mp_face_mesh.FaceMesh(
             #print("Eye: {}{}", left_eye, right_eye)
 
             # Draw
-            cv.circle(frame, left_iris, int(l_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, right_iris, int(r_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, left_eye, int(l_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, right_eye, int(r_radius), (255,0,255), 1, cv.LINE_AA)
+            #cv.circle(frame, left_iris, int(l_radius), (255,0,255), 1, cv.LINE_AA)
+            #cv.circle(frame, right_iris, int(r_radius), (255,0,255), 1, cv.LINE_AA)
+            #cv.circle(frame, left_eye, int(l_radius), (255,0,255), 1, cv.LINE_AA)
+            #cv.circle(frame, right_eye, int(r_radius), (255,0,255), 1, cv.LINE_AA)
 
             # Compute Direction
             left_offset = left_iris[0] - left_eye[0]      
