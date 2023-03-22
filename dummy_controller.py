@@ -152,6 +152,7 @@ def eye_tracking():
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5
     ) as face_mesh:
+        counter = 0
         while True:
             frame = video_frame_queue.get()
             img_h, img_w = frame.shape[:2]
@@ -188,7 +189,8 @@ def eye_tracking():
                 elif angle <= 0.47:
                     angle = -50
 
-                print(angle)
+                print(angle, counter)
+                counter += 1
                 sleep(0.1)
 
                 angle_input_queue.put(angle)
