@@ -187,11 +187,11 @@ def eye_tracking():
                 # angle = offset/15*100//10
                 angle = offset/15*100
 
-                if angle > -10 and angle < 10:
+                if angle > -45/2 and angle < 45/2:
                     angle = 0
-                elif angle <= -10:
+                elif angle <= -45/2:
                     angle = -45
-                elif angle >= 10:
+                elif angle >= 45/2:
                     angle = 45
 
                 angle_input_queue.put(angle)
