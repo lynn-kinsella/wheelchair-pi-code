@@ -3,7 +3,8 @@ from configuration_constants import *
 from state_enums import SpeedStates, AngleStates 
 
 from threading import Thread, Lock, Event
-from queue import Queue, Empty
+from multiprocessing import Manager, Process
+from queue import Queue
 from time import sleep
 
 from pythonosc import osc_server, dispatcher
@@ -31,19 +32,9 @@ pwm_r = Motor()
 """
 Shared Variables
 """
-speed_input_queue = Queue()
-angle_input_queue = Queue()
-PWM_queue = Queue()
 
-# OSC Server internal synchronization variables
-shared_buffer = Queue(maxsize=PREDICT_WINDOW)
 
-if os.environ["INPUT_MODE"] == "LIVE":
-    tf_model = tf.keras.models.load_model("./model_saved")
-else:
-    tf_model = None
-
-def set_PWM():
+def set_PWM(PWM_queue):
     output_enabled = False
     while True:
         # Get angle and speed info from external input
@@ -71,24 +62,29 @@ def set_PWM():
         # print(pwm_r, " -- ", pwm_l)
 
 
-def dummy_input():
+def dummy_input(speed_input_queue, angle_input_queue):
+    i = 0
     while True:
-        speed, angle = motor_utils.dummy_external_input()
+        i = (i+1)%2
+        speed, angle = i, i
+        #speed, angle = motor_utils.dummy_external_input()
 
         angle_input_queue.put(angle)
         speed_input_queue.put(speed)
+        sleep(1)
 
 
-def eeg_handler(address: str,*args):
+def eeg_handler(address: str, fixed_args: list, *args):
+    shared_buffer = fixed_args[0]
     if len(args) == 4: 
-        if shared_buffer.full():
-            shared_buffer.get()
-        shared_buffer.put(args)
+        if len(shared_buffer) == PREDICT_WINDOW+5:
+            del shared_buffer[0]
+        shared_buffer.append(args)
 
 
-def osc_server_handler():
+def osc_server_handler(shared_buffer):
     osc_dispatcher = dispatcher.Dispatcher()
-    osc_dispatcher.map("/muse/eeg", eeg_handler)
+    osc_dispatcher.map("/muse/eeg", eeg_handler, shared_buffer)
 
     # server = osc_server.ThreadingOSCUDPServer((ip, port), dispatcher)
     server = osc_server.BlockingOSCUDPServer((OSC_SERVER_IP, OSC_SERVER_PORT), osc_dispatcher)
@@ -96,14 +92,15 @@ def osc_server_handler():
     server.serve_forever()
 
 
-def prediction_server():
+def prediction_server(shared_buffer, speed_input_queue):
     BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
+    tf_model = tf.keras.models.load_model("./model_saved")
     while True:
-        if not shared_buffer.full():
+        if len(shared_buffer) < PREDICT_WINDOW:
             continue
         else:
-            data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
+            data = np.array([shared_buffer[:PREDICT_WINDOW]]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
 
             # using queue instead
@@ -119,20 +116,17 @@ def prediction_server():
             prev_weighted_prediction = hist_weighted_prediction
             speed_pred = hist_weighted_prediction
             speed_input_queue.put(speed_pred)
-            print(speed_pred)
+            #print(speed_pred)
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
-        angle = 0
-        angle_input_queue.put(angle)
-
 
 def set_val_from_queue(old_val, q):
-    try:
+    if not q.empty():
         val = q.get(False)
         if val == SpeedStates.DISCONNECTED:
             val = old_val
         return val
-    except Empty as e:
+    else:
         return old_val
     
 
@@ -173,7 +167,7 @@ def update_angle_state(state):
     return state
 
 
-def periodic_update():
+def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
     angle_state = {
         "current": 0,
         "previous": 0,
@@ -196,27 +190,42 @@ def periodic_update():
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
+        print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
 
 if __name__ == "__main__":
-    thread_list = []
-    pwm_thread = Thread(target=set_PWM)
-    thread_list.append(pwm_thread)
+    # Buffers 
+
+    speed_input_queue = Manager().Queue()
+    angle_input_queue = Manager().Queue()
+    PWM_queue = Manager().Queue()
+    
+    # OSC Server internal synchronization variables
+    # FIXME: Using a list here could be slower, we'll have to see when running pi
+    # Solution can be to put osc and prediction server thread on the same process
+    shared_buffer = Manager().list()
+
+    process_list = []
+    pwm_process = Process(target=set_PWM, args=(PWM_queue,))
+    process_list.append(pwm_process)
 
     if os.environ["INPUT_MODE"] == "LIVE":
-        osc_thread = Thread(target=osc_server_handler)
-        thread_list.append(osc_thread)
-        prediction_thread = Thread(target=prediction_server)
-        thread_list.append(prediction_thread)
+        osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
+        process_list.append(osc_process)
+        prediction_process = Process(target=prediction_server, args=(shared_buffer, speed_input_queue))
+        process_list.append(prediction_process)
 
     else:
-        dummy_thread = Thread(target=dummy_input)
-        thread_list.append(dummy_thread)
+        dummy_process = Process(target=dummy_input, args=(speed_input_queue, angle_input_queue))
+        process_list.append(dummy_process)
 
-    state_thread = Thread(target=periodic_update)
-    thread_list.append(state_thread)
+    state_process = Process(target=periodic_update, args=(PWM_queue, angle_input_queue, speed_input_queue))
+    process_list.append(state_process)
 
-    for thread in thread_list:
-        thread.start()
+    for process in process_list:
+        process.start()
+
+    for process in process_list:
+        process.join()
