@@ -33,7 +33,7 @@ pwm_r = Motor()
 """
 Shared Variables
 """
-video_frame_queue = Queue()
+video_frame_queue = Queue(1)
 speed_input_queue = Queue()
 angle_input_queue = Queue()
 PWM_queue = Queue()
@@ -122,7 +122,7 @@ def prediction_server():
             prev_weighted_prediction = hist_weighted_prediction
             speed_pred = hist_weighted_prediction
             speed_input_queue.put(speed_pred)
-            print(speed_pred)
+            # print(speed_pred)
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
         angle = 0
@@ -184,7 +184,17 @@ def eye_tracking():
                 if offset < -15:
                     offset = -15
 
-                angle_input_queue.put(offset/15*100)
+                # angle = offset/15*100//10
+                angle = offset/15*100
+
+                if angle > -10 and angle < 10:
+                    angle = 0
+                elif angle <= -10:
+                    angle = -45
+                elif angle >= 10:
+                    angle = 45
+
+                angle_input_queue.put(angle)
             
         
 
@@ -257,6 +267,8 @@ def periodic_update():
 
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
+
+        print(angle_state["current"])
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
 
