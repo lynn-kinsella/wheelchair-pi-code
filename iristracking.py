@@ -3,26 +3,21 @@ import cv2 as cv
 import numpy as np
 import mediapipe as mp 
 mp_face_mesh = mp.solutions.face_mesh
-
-# Face Mesh indicies that compose Left Eye
-LEFT_EYE =[ 362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385,384, 398 ]
-# Face Mesh Indicies that compose Right Eye
-RIGHT_EYE=[ 33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161 , 246 ] 
+from time import sleep
 
 # From (https://raw.githubusercontent.com/google/mediapipe/master/mediapipe/modules/face_geometry/data/canonical_face_model_uv_visualization.png)
-# Indicies for Middle Left Eye
-LEFT_CENTRE=[380, 374, 373, 385, 386, 387]
-# Indicies for Middle Right Eye
-RIGHT_CENTRE=[144, 145, 153, 160, 159, 158]
 
 LEFT_IRIS = [474,475, 476, 477]
 RIGHT_IRIS = [469, 470, 471, 472]
 
+RIGHT_CORNERS = [33, 362]
+LEFT_CORNERS = [133, 263]
+
 OFFSET_THRESHOLD = 5
 
-address = 'MM.local'
+address = 'tcp://MM.local:3333'
 print("Connecting to tcp video stream")
-cap = cv.VideoCapture('tcp://MM.local:3333')
+cap = cv.VideoCapture(0)
 #Add a check to see if stream is opened correctly
 with mp_face_mesh.FaceMesh(
     max_num_faces=1,
@@ -43,44 +38,27 @@ with mp_face_mesh.FaceMesh(
             # Get Mesh Points
             mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
             
-            # Calculate Iris Position
-            (l_ix, l_iy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_IRIS])
-            (r_ix, r_iy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_IRIS])
-            left_iris = np.array([l_ix, l_iy], dtype=np.int32)
-            right_iris = np.array([r_ix, r_iy], dtype=np.int32)
-            #print("Iris: {}{}", left_iris, right_iris)
+            left_iris_points = mesh_points[LEFT_IRIS]
+            right_iris_points = mesh_points[RIGHT_IRIS]
 
-            # Calculate Eye Position
-            (l_cx, l_cy), l_radius = cv.minEnclosingCircle(mesh_points[LEFT_CENTRE])
-            (r_cx, r_cy), r_radius = cv.minEnclosingCircle(mesh_points[RIGHT_CENTRE])
-            left_eye = np.array([l_cx, l_cy], dtype=np.int32)
-            right_eye = np.array([r_cx, r_cy], dtype=np.int32)
-            #print("Eye: {}{}", left_eye, right_eye)
+            left_iris = left_iris_points[0][0] + left_iris_points[1][0] + left_iris_points[2][0] + left_iris_points[3][0]
+            left_iris = left_iris//4
+            right_iris = right_iris_points[0][0] + right_iris_points[1][0] + right_iris_points[2][0] + right_iris_points[3][0]
+            right_iris = right_iris//4
 
-            # Draw
-            cv.circle(frame, left_iris, int(l_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, right_iris, int(r_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, left_eye, int(l_radius), (255,0,255), 1, cv.LINE_AA)
-            cv.circle(frame, right_eye, int(r_radius), (255,0,255), 1, cv.LINE_AA)
+            ### Calculate Eye Corners
+            lcorners = mesh_points[LEFT_CORNERS]
+            lcorners = [lcorners[0][0], lcorners[1][0]]
+            rcorners = mesh_points[RIGHT_CORNERS]
+            rcorners = [rcorners[0][0], rcorners[1][0]]
 
-            # Compute Direction
-            left_offset = left_iris[0] - left_eye[0]      
-            right_offset = right_iris[0] - right_eye[0]
-            offset = left_offset + right_offset
-
-            if offset > 15:
-                offset = 15
-            if offset < -15:
-                offset = -15
-
-            print(offset)
-
-            # if(offset < -OFFSET_THRESHOLD):
-            #     print("Left")
-            # elif(offset > OFFSET_THRESHOLD):
-            #     print("Right")
-            # else:
-            #     print("Straight")
+            # Calculate angle
+            # Represented as % of distance the centre of iris is from left corner to right corner of eye
+            total_dist = lcorners[1] - lcorners[0] + rcorners[1] - rcorners[0]
+            offset = left_iris - lcorners[0] + right_iris - rcorners[0]
+            angle = offset/total_dist
+            print(angle)
+            sleep(0.1)
 
         cv.imshow('img', frame)
         key = cv.waitKey(1)
