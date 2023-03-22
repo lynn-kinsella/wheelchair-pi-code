@@ -237,9 +237,11 @@ def update_speed_state(state):
 def update_angle_state(state):   
     
     diff = state["target"] - state["current"]
-    step = 0.1
-    step = min(abs(diff), step) 
-    step *= diff/abs(diff) 
+    step = 0
+    if diff > 0:
+        step = 0.1
+        step = min(abs(diff), step) 
+        step *= diff/abs(diff) 
 
     state["current"] = state["current"] + step
     return state
