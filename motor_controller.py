@@ -160,13 +160,13 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
         else:
-            if state["speed"] == 100:
+            if state["speed"] == PEAK_PWM_SPEED:
                 new_acceleration = 0
     
     state["accel"] = new_acceleration
 
     new_speed = state["speed"] + state["accel"]
-    new_speed = min(100, new_speed)
+    new_speed = min(PEAK_PWM_SPEED, new_speed)
     new_speed = max(0, new_speed)
 
     state["speed"] = new_speed
