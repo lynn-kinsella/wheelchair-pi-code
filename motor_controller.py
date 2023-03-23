@@ -94,7 +94,7 @@ def dummy_input(speed_input_queue, angle_input_queue):
 def eeg_handler(address: str, fixed_args: list, *args):
     shared_buffer = fixed_args[0]
     if len(args) == 4: 
-        if len(shared_buffer) == PREDICT_WINDOW+5:
+        if len(shared_buffer) == BCI_PREDICT_WINDOW+5:
             del shared_buffer[0]
         shared_buffer.append(args)
 
@@ -110,14 +110,13 @@ def osc_server_handler(shared_buffer):
 
 
 def prediction_server(shared_buffer, speed_input_queue):
-    BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
-    prev_weighted_prediction = 0
+    BCI_history = Queue(maxsize=BCI_SMOOTHING_WINDOW)
     tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
-        if len(shared_buffer) < PREDICT_WINDOW:
+        if len(shared_buffer) < BCI_PREDICT_WINDOW:
             continue
         else:
-            data = np.array([shared_buffer[:PREDICT_WINDOW]]).transpose(0, 2, 1)
+            data = np.array([shared_buffer[:BCI_PREDICT_WINDOW]]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
 
             # using queue instead
@@ -130,7 +129,6 @@ def prediction_server(shared_buffer, speed_input_queue):
             #    for i in range(len(BCI_history)//2):
             #        BCI_history.pop()
 
-            prev_weighted_prediction = hist_weighted_prediction
             speed_pred = hist_weighted_prediction
             speed_input_queue.put(speed_pred)
 
@@ -148,7 +146,9 @@ def tcp_receiver(video_frame_queue):
         video_frame_queue.put(rgb_frame)
 
 
-def eye_tracking(video_frame_queue, angle_input_queue):
+def eye_tracking(video_frame_queue, angle_input_queue):    
+    eye_tracking_history = Queue(maxsize=EYE_SMOOTHING_WINDOW)
+    
     mp_face_mesh = mp.solutions.face_mesh
     with mp_face_mesh.FaceMesh(
         max_num_faces=1,
@@ -191,8 +191,20 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                     angle = 50
                 elif angle <= 0.47:
                     angle = -50
+                        
+                # using queue instead
+                if eye_tracking_history.full():
+                    eye_tracking_history.get()
+                eye_tracking_history.put(angle)
 
-                angle_input_queue.put(angle)
+                hist_weighted_prediction = max(eye_tracking_history.queue, key=eye_tracking_history.queue.count)
+                #if prev_weighted_prediction != hist_weighted_prediction:
+                #    for i in range(len(BCI_history)//2):
+                #        BCI_history.pop()
+                angle_pred = hist_weighted_prediction
+                angle_input_queue.put(angle_pred)
+
+
 
 def set_val_from_queue(old_val, q):
     if not q.empty():
@@ -231,7 +243,7 @@ def update_speed_state(state):
     state["speed"] = new_speed
     return state
 
-
+ 
 def update_angle_state(state):   
     
     diff = state["target"] - state["current"]

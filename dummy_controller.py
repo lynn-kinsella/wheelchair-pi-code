@@ -79,7 +79,7 @@ def dummy_input(speed_input_queue, angle_input_queue):
 def eeg_handler(address: str, fixed_args: list, *args):
     shared_buffer = fixed_args[0]
     if len(args) == 4: 
-        if len(shared_buffer) == PREDICT_WINDOW+5:
+        if len(shared_buffer) == BCI_PREDICT_WINDOW+5:
             del shared_buffer[0]
         shared_buffer.append(args)
 
@@ -95,14 +95,14 @@ def osc_server_handler(shared_buffer):
 
 
 def prediction_server(shared_buffer, speed_input_queue):
-    BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
+    BCI_history = Queue(maxsize=BCI_SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
     tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
-        if len(shared_buffer) < PREDICT_WINDOW:
+        if len(shared_buffer) < BCI_PREDICT_WINDOW:
             continue
         else:
-            data = np.array([shared_buffer[:PREDICT_WINDOW]]).transpose(0, 2, 1)
+            data = np.array([shared_buffer[:BCI_PREDICT_WINDOW]]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
 
             # using queue instead
