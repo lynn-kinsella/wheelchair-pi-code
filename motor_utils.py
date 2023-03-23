@@ -18,7 +18,6 @@ def motor_map(angle, speed):
 
     # left_PWM = left_factor*speed
     # right_PWM = right_factor*speed
-
     return (int(left_pwm), int(right_pwm))
 
 def dummy_external_input():

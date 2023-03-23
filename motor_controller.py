@@ -71,7 +71,7 @@ def set_PWM(PWM_queue):
                 output_enabled = True
                 GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
                 sleep(MOTOR_SLEEP_TIME)
-
+            print(lpwm_new, rpwm_new)
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
