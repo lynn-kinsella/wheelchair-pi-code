@@ -185,11 +185,11 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 offset = left_iris - lcorners[0] + right_iris - rcorners[0]
                 angle = offset/total_dist
 
-                if angle < .53 and angle > .47:
+                if angle < LEFT_CENTER_DEADZONE and angle > RIGHT_CENTER_DEADZONE:
                     angle = 0
-                elif angle >= .53:
+                elif angle >= RIGHT_CENTER_DEADZONE:
                     angle = 50
-                elif angle <= 0.47:
+                elif angle <= LEFT_CENTER_DEADZONE:
                     angle = -50
                         
                 # using queue instead
