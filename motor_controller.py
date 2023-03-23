@@ -71,7 +71,7 @@ def set_PWM(PWM_queue):
                 output_enabled = True
                 GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
                 sleep(MOTOR_SLEEP_TIME)
-            print(lpwm_new, rpwm_new)
+            # print(lpwm_new, rpwm_new)
             # Set left, right PWM
             pwm_r.ChangeDutyCycle(rpwm_new)
             pwm_l.ChangeDutyCycle(lpwm_new)
@@ -208,7 +208,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
 
-                # print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
+                print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
                 sleep(0.1)
 
