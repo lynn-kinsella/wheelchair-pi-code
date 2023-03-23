@@ -139,6 +139,8 @@ def prediction_server(shared_buffer, speed_input_queue):
 
             speed_pred = hist_weighted_prediction
             # print("Speed prediction: ", speed_pred)
+            if prediction == 5:
+                speed_pred = 5
             speed_input_queue.put(speed_pred)
 
 
@@ -295,7 +297,7 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        print(angle_state['current'], speed_state['speed'])
+        # print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
