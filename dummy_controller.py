@@ -1,6 +1,6 @@
 import motor_utils
 from configuration_constants import *
-from state_enums import SpeedStates, AngleStates 
+from state_enums import SpeedStates, AngleStates, AnglePred
 import cv2 as cv
 import mediapipe as mp
 
@@ -96,7 +96,6 @@ def osc_server_handler(shared_buffer):
 
 def prediction_server(shared_buffer, speed_input_queue):
     BCI_history = Queue(maxsize=BCI_SMOOTHING_WINDOW)
-    prev_weighted_prediction = 0
     tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
         if len(shared_buffer) < BCI_PREDICT_WINDOW:
@@ -115,12 +114,8 @@ def prediction_server(shared_buffer, speed_input_queue):
             #    for i in range(len(BCI_history)//2):
             #        BCI_history.pop()
 
-            prev_weighted_prediction = hist_weighted_prediction
             speed_pred = hist_weighted_prediction
-            speed_input_queue.put(speed_pred)
-            #print(speed_pred)
-
-        #angle, dummy = motor_utils.dummy_external_input()                                  
+            speed_input_queue.put(speed_pred)                                
 
 def tcp_receiver(video_frame_queue):
     print("Connecting to tcp video stream")
@@ -140,7 +135,9 @@ def tcp_receiver(video_frame_queue):
 
         
 
-def eye_tracking(video_frame_queue, angle_input_queue):
+def eye_tracking(video_frame_queue, angle_input_queue):    
+    eye_tracking_history = Queue(maxsize=EYE_SMOOTHING_WINDOW)
+    
     mp_face_mesh = mp.solutions.face_mesh
     with mp_face_mesh.FaceMesh(
         max_num_faces=1,
@@ -148,7 +145,6 @@ def eye_tracking(video_frame_queue, angle_input_queue):
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5
     ) as face_mesh:
-        counter = 0
         while True:
             frame = video_frame_queue.get()
             img_h, img_w = frame.shape[:2]
@@ -178,20 +174,26 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 offset = left_iris - lcorners[0] + right_iris - rcorners[0]
                 angle = offset/total_dist
 
-                if angle < .53 and angle > .47:
+                if angle < LEFT_CENTER_DEADZONE and angle > RIGHT_CENTER_DEADZONE:
                     angle = 0
-                    print("Eye Tracking - Center")
-                elif angle >= .53:
+                elif angle <= RIGHT_CENTER_DEADZONE:
                     angle = 50
-                    print("Eye Tracking - Left")
-                elif angle <= 0.47:
+                elif angle >= LEFT_CENTER_DEADZONE:
                     angle = -50
-                    print("Eye Tracking - Right")
+                        
+                # using queue instead
+                if eye_tracking_history.full():
+                    eye_tracking_history.get()
+                eye_tracking_history.put(angle)
 
-                # print(angle)
-                counter += 1
+                hist_weighted_prediction = max(eye_tracking_history.queue, key=eye_tracking_history.queue.count)
+                #if prev_weighted_prediction != hist_weighted_prediction:
+                #    for i in range(len(BCI_history)//2):
+                #        BCI_history.pop()
+                angle_pred = hist_weighted_prediction
 
-                angle_input_queue.put(angle)
+                print( AnglePred( (int)(angle_pred)).name)
+                angle_input_queue.put(angle_pred)
 
 
 def set_val_from_queue(old_val, q):

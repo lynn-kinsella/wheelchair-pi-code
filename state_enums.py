@@ -11,3 +11,8 @@ class AngleStates (Enum):
     INCREASE_FROM_NEGATIVE = 2
     DECREASE_FROM_NEGATIVE = -1
     DECREASE_FROM_POSITIVE = -2
+
+class AnglePred (Enum):
+    CENTER = 0
+    LEFT = -50
+    RIGHT = 50
