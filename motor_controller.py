@@ -1,7 +1,7 @@
 import random
 import motor_utils
 from configuration_constants import *
-from state_enums import SpeedStates, AngleStates 
+from state_enums import SpeedStates, AngleStates, AnglePred
 
 from threading import Thread, Lock, Event
 from multiprocessing import Manager, Process
@@ -207,7 +207,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
 
-                print( AnglePred( (int)(angle_pred)).name)
+                # print( AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
 
 
@@ -286,7 +286,7 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        # print(angle_state['current'], speed_state['speed'])
+        print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
