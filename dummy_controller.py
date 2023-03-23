@@ -134,7 +134,10 @@ def tcp_receiver(video_frame_queue):
             continue
         frame = cv.flip(frame, 1)
         rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        if video_frame_queue.full():
+            video_frame_queue.get()    
         video_frame_queue.put(rgb_frame)
+
         
 
 def eye_tracking(video_frame_queue, angle_input_queue):
@@ -273,7 +276,7 @@ if __name__ == "__main__":
     speed_input_queue = Manager().Queue()
     angle_input_queue = Manager().Queue()
     PWM_queue = Manager().Queue()
-    video_frame_queue = Manager().Queue()
+    video_frame_queue = Manager().Queue(3)
     
     # OSC Server internal synchronization variables
     # FIXME: Using a list here could be slower, we'll have to see when running pi
