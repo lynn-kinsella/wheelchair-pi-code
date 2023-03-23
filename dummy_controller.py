@@ -124,11 +124,13 @@ def prediction_server(shared_buffer, speed_input_queue):
 
 def tcp_receiver(video_frame_queue):
     print("Connecting to tcp video stream")
-    cap = cv.VideoCapture('tcp://MM.local:3333')
+    cap = cv.VideoCapture("tcp://MM@172.20.10.6:3333")
+    # cap = cv.VideoCapture('tcp://MM.local:3333')
     while True:
         ret, frame = cap.read()
         if not ret:
             print("Error reading frame")
+            sleep(1/10/2) # Sleep for half a frame @ 10 FPS
             continue
         frame = cv.flip(frame, 1)
         rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
@@ -225,11 +227,15 @@ def update_speed_state(state):
 
 
 def update_angle_state(state):   
+    
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
+    step = 0
+    if diff > 0:
+        step = 1
+        step = min(abs(diff), step) 
+        step *= diff/abs(diff) 
 
-    state["previous"] = state["current"]
-    state["current"] = new_angle
+    state["current"] = state["current"] + step
     return state
 
 
@@ -284,7 +290,7 @@ if __name__ == "__main__":
         prediction_process = Process(target=prediction_server, args=(shared_buffer, speed_input_queue))
         process_list.append(prediction_process)
 
-        tcp_rx_thread = Process(target=tcp_receiver, args=(video_frame_queue))
+        tcp_rx_thread = Process(target=tcp_receiver, args=(video_frame_queue,))
         process_list.append(tcp_rx_thread)
         eye_tracking_thread = Process(target=eye_tracking, args=(video_frame_queue, angle_input_queue))
         process_list.append(eye_tracking_thread)

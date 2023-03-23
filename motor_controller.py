@@ -156,7 +156,6 @@ def eye_tracking(video_frame_queue, angle_input_queue):
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5
     ) as face_mesh:
-        counter = 0
         while True:
             frame = video_frame_queue.get()
             img_h, img_w = frame.shape[:2]
@@ -192,9 +191,6 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                     angle = 50
                 elif angle <= 0.47:
                     angle = -50
-
-                print(angle, counter)
-                counter += 1
 
                 angle_input_queue.put(angle)
 
@@ -237,11 +233,15 @@ def update_speed_state(state):
 
 
 def update_angle_state(state):   
+    
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
+    step = 0
+    if diff > 0:
+        step = 1
+        step = min(abs(diff), step) 
+        step *= diff/abs(diff) 
 
-    state["previous"] = state["current"]
-    state["current"] = new_angle
+    state["current"] = state["current"] + step
     return state
 
 
