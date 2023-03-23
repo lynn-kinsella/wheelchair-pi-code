@@ -108,14 +108,20 @@ def prediction_server(shared_buffer, speed_input_queue):
             if BCI_history.full():
                 BCI_history.get()
             BCI_history.put(prediction)
-
+            
+            if prediction == SpeedStates.DISCONNECTED.value:
+                for i in range(BCI_SMOOTHING_WINDOW):
+                    BCI_history.put(prediction)
+                
             hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
-            #if prev_weighted_prediction != hist_weighted_prediction:
-            #    for i in range(len(BCI_history)//2):
-            #        BCI_history.pop()
+
+            if hist_weighted_prediction == SpeedStates.DECCEL.value:
+                for i in range(BCI_SMOOTHING_WINDOW):
+                    BCI_history.put(hist_weighted_prediction)
 
             speed_pred = hist_weighted_prediction
-            speed_input_queue.put(speed_pred)                                
+            speed_input_queue.put(speed_pred)
+                              
 
 def tcp_receiver(video_frame_queue):
     print("Connecting to tcp video stream")
@@ -221,13 +227,13 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
         else:
-            if state["speed"] == 100:
+            if state["speed"] == PEAK_PWM_SPEED:
                 new_acceleration = 0
     
     state["accel"] = new_acceleration
 
     new_speed = state["speed"] + state["accel"]
-    new_speed = min(100, new_speed)
+    new_speed = min(PEAK_PWM_SPEED, new_speed)
     new_speed = max(0, new_speed)
 
     state["speed"] = new_speed
@@ -238,7 +244,7 @@ def update_angle_state(state):
     
     diff = state["target"] - state["current"]
     step = 0
-    if diff > 0:
+    if abs(diff) > 0:
         step = ANGLE_STEP_SIZE
         step = min(abs(diff), step) 
         step *= diff/abs(diff) 
@@ -289,8 +295,7 @@ if __name__ == "__main__":
     shared_buffer = Manager().list()
 
     process_list = []
-    pwm_process = Process(target=set_PWM, args=(PWM_queue,))
-    process_list.append(pwm_process)
+    
 
     if os.environ["INPUT_MODE"] == "LIVE":
         osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
@@ -312,6 +317,8 @@ if __name__ == "__main__":
 
     for process in process_list:
         process.start()
+
+    set_PWM(PWM_queue)
 
     for process in process_list:
         process.join()

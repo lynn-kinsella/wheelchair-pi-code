@@ -131,16 +131,16 @@ def prediction_server(shared_buffer, speed_input_queue):
             if BCI_history.full():
                 BCI_history.get()
             BCI_history.put(prediction)
-
+            if prediction == SpeedStates.DISCONNECTED.value:
+                for i in range(BCI_SMOOTHING_WINDOW):
+                    BCI_history.put(prediction)
             hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
-            #if prev_weighted_prediction != hist_weighted_prediction:
-            #    for i in range(len(BCI_history)//2):
-            #        BCI_history.pop()
+            if hist_weighted_prediction == SpeedStates.DECCEL.value:
+                for i in range(BCI_SMOOTHING_WINDOW):
+                    BCI_history.put(hist_weighted_prediction)
 
             speed_pred = hist_weighted_prediction
-            # print("Speed prediction: ", speed_pred)
-            if prediction == 5:
-                speed_pred = 5
+            
             speed_input_queue.put(speed_pred)
 
 
