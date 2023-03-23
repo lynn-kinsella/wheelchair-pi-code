@@ -188,7 +188,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                     angle = -50
                     print("Eye Tracking - Right")
 
-                print(angle)
+                # print(angle)
                 counter += 1
 
                 angle_input_queue.put(angle)
