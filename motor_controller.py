@@ -135,8 +135,8 @@ def prediction_server(shared_buffer, speed_input_queue):
 
 def tcp_receiver(video_frame_queue):
     print("Connecting to tcp video stream")
-    cap = cv.VideoCapture("tcp://MM@172.20.10.6:3333")
-    # cap = cv.VideoCapture('tcp://MM.local:3333')
+    # cap = cv.VideoCapture("tcp://MM@172.20.10.6:3333")
+    cap = cv.VideoCapture('tcp://MM.local:3333')
     while True:
         ret, frame = cap.read()
         if not ret:
