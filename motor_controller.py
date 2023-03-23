@@ -52,31 +52,39 @@ pwm_l.start(0)
 
 
 def set_PWM(PWM_queue):
-    output_enabled = False
-    while True:
-        # Get angle and speed info from external input
-        angle, speed = PWM_queue.get()
+    try:
+        output_enabled = False
+        while True:
+            # Get angle and speed info from external input
+            angle, speed = PWM_queue.get()
 
-        if speed < SPEED_PWM_DEADZONE:
-            pwm_r.ChangeDutyCycle(0)
-            pwm_l.ChangeDutyCycle(0)
-            output_enabled = False
-            GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
-        else:
-            # Convert to PWM
-            lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
-
-            # Enable motor output
-            if output_enabled == False:
-                output_enabled = True
+            if speed < SPEED_PWM_DEADZONE:
+                pwm_r.ChangeDutyCycle(0)
+                pwm_l.ChangeDutyCycle(0)
+                output_enabled = False
                 GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
+            else:
+                # Convert to PWM
+                lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
+
+                # Enable motor output
+                if output_enabled == False:
+                    output_enabled = True
+                    GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
+                    sleep(MOTOR_SLEEP_TIME)
+                # print(lpwm_new, rpwm_new)
+                # Set left, right PWM
+                pwm_r.ChangeDutyCycle(rpwm_new)
+                pwm_l.ChangeDutyCycle(lpwm_new)
                 sleep(MOTOR_SLEEP_TIME)
-            # print(lpwm_new, rpwm_new)
-            # Set left, right PWM
-            pwm_r.ChangeDutyCycle(rpwm_new)
-            pwm_l.ChangeDutyCycle(lpwm_new)
-            sleep(MOTOR_SLEEP_TIME)
-        # print(pwm_r, " -- ", pwm_l)
+            # print(pwm_r, " -- ", pwm_l)
+    except:
+        pwm_r.ChangeDutyCycle(0)
+        pwm_l.ChangeDutyCycle(0)
+        output_enabled = False
+        GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
+
+
 
 
 def dummy_input(speed_input_queue, angle_input_queue):
@@ -256,7 +264,7 @@ def update_angle_state(state):
     diff = state["target"] - state["current"]
     step = 0
     if abs(diff) > 0:
-        step = 1
+        step = ANGLE_STEP_SIZE
         step = min(abs(diff), step) 
         step *= diff/abs(diff) 
 
