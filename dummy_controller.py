@@ -180,10 +180,13 @@ def eye_tracking(video_frame_queue, angle_input_queue):
 
                 if angle < .53 and angle > .47:
                     angle = 0
+                    print("Eye Tracking - Center")
                 elif angle >= .53:
                     angle = 50
+                    print("Eye Tracking - Left")
                 elif angle <= 0.47:
                     angle = -50
+                    print("Eye Tracking - Right")
 
                 print(angle)
                 counter += 1

@@ -2,16 +2,15 @@ import math
 
 def motor_map(angle, speed):
     """
-    Convert an angle in radians, with pi/2 rad at fully right
-    and -pi/2 rad at fully left and a scalar speed to a motor PWMs
+    Convert an angle in % from -100 being fully right and 100 being fully left
     """
     
-    if (angle >= 0 ):
+    if (angle <= 0 ):
         # left_factor = 1 - abs(2*angle/math.pi)
         # right_factor = 1
         left_pwm = speed - angle
         right_pwm = speed
-    if (angle < 0):
+    if (angle > 0):
         right_pwm = speed + angle
         left_pwm = speed
         # left_factor = 1
