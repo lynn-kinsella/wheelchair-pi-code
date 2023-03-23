@@ -208,7 +208,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
 
-                print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
+                # print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
                 sleep(0.1)
 
@@ -309,8 +309,6 @@ if __name__ == "__main__":
     shared_buffer = Manager().list()
 
     process_list = []
-    pwm_process = Process(target=set_PWM, args=(PWM_queue,))
-    process_list.append(pwm_process)
 
     if os.environ["INPUT_MODE"] == "LIVE":
         osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
@@ -332,6 +330,8 @@ if __name__ == "__main__":
 
     for process in process_list:
         process.start()
+
+    set_PWM(PWM_queue)
 
     for process in process_list:
         process.join()
