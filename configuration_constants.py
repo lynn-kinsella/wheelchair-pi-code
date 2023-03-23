@@ -27,7 +27,7 @@ OSC PARAMETERS
 BCI_HISTORY_DEQUE_LENGTH = 30
 BCI_SMOOTHING_WINDOW = 3
 BCI_PREDICT_WINDOW = 400
-MODEL_DIR = "./successful_model_1"
+MODEL_DIR = "./live_model_to_be_tested"
 
 
 """
