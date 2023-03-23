@@ -95,7 +95,7 @@ def osc_server_handler(shared_buffer):
 def prediction_server(shared_buffer, speed_input_queue):
     BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
-    tf_model = tf.keras.models.load_model("./model_saved")
+    tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
         if len(shared_buffer) < PREDICT_WINDOW:
             continue
