@@ -1,90 +1,67 @@
-import random
 import motor_utils
 from configuration_constants import *
 from state_enums import SpeedStates, AngleStates, AnglePred
+import cv2 as cv
+import mediapipe as mp
 
 from threading import Thread, Lock, Event
 from multiprocessing import Manager, Process
-from queue import Queue, Empty
-import RPi.GPIO as GPIO
+from queue import Queue
 from time import sleep
-import os
+
 from pythonosc import osc_server, dispatcher
-from time import time
-from collections import deque
 
-import tensorflow as tf
+import os
 import numpy as np
-import mediapipe as mp
-import cv2 as cv
+import tensorflow as tf
 
-'''
-Pin List - 3/8/23
-4 - 5V high
-6 - GND
-10 - Enable (for motors, disable for break)
-12 - Right Motor FWD PWM
-38 -  Right Motor REV PWM
-40 - Left Motor REV PWM
-35 - Left Motor FWD PWM
-'''
+class Motor:
+    def __init__(self, dc=0):
+        self.pwm = dc
+    def ChangeDutyCycle(self, dc):
+        self.pwm = dc
+    def __str__(self) -> str:
+        return str(self.pwm)
+
+class GPIO():
+    def output(pin, state):
+        #print("Pin ", pin, " in state ", state)
+        pass
+
+pwm_l = Motor()
+pwm_r = Motor()
 
 """
-Initialize Pins
+Shared Variables
 """
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(RIGHT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(MOTOR_ENABLE_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(LEFT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(LPWM_R, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(RPWM_R, GPIO.OUT, initial = GPIO.LOW)
-
-# Set pins as PWM
-pwm_r = GPIO.PWM(RIGHT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Right Motor
-pwm_r.start(0)
-# pwm1r = GPIO.PWM(38, 20000) #Right Motor, Reverse
-# pwm1r.start(0)
-pwm_l = GPIO.PWM(LEFT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Left Motor
-pwm_l.start(0)
-# pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
-# pwm2r.start(0)
 
 
 def set_PWM(PWM_queue):
-    try:
-        output_enabled = False
-        while True:
-            # Get angle and speed info from external input
-            angle, speed = PWM_queue.get()
+    output_enabled = False
+    while True:
+        # Get angle and speed info from external input
+        angle, speed = PWM_queue.get()
 
-            if speed < SPEED_PWM_DEADZONE:
-                pwm_r.ChangeDutyCycle(0)
-                pwm_l.ChangeDutyCycle(0)
-                output_enabled = False
+        if speed < SPEED_PWM_DEADZONE:
+            pwm_r.ChangeDutyCycle(0)
+            pwm_l.ChangeDutyCycle(0)
+            output_enabled = False
+            GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
+        else:
+            # Convert to PWM
+            lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
+
+            # Enable motor output
+            if output_enabled == False:
+                output_enabled = True
                 GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
-            else:
-                # Convert to PWM
-                lpwm_new, rpwm_new = motor_utils.motor_map(angle, speed)
-
-                # Enable motor output
-                if output_enabled == False:
-                    output_enabled = True
-                    GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
-                    sleep(MOTOR_SLEEP_TIME)
-                # print(lpwm_new, rpwm_new)
-                # Set left, right PWM
-                pwm_r.ChangeDutyCycle(rpwm_new)
-                pwm_l.ChangeDutyCycle(lpwm_new)
                 sleep(MOTOR_SLEEP_TIME)
-            # print(pwm_r, " -- ", pwm_l)
-    except:
-        pwm_r.ChangeDutyCycle(0)
-        pwm_l.ChangeDutyCycle(0)
-        output_enabled = False
-        GPIO.output(MOTOR_ENABLE_PIN, output_enabled)
 
-
+            # Set left, right PWM
+            pwm_r.ChangeDutyCycle(rpwm_new)
+            pwm_l.ChangeDutyCycle(lpwm_new)
+            sleep(MOTOR_SLEEP_TIME)
+        # print(pwm_r, " -- ", pwm_l)
 
 
 def dummy_input(speed_input_queue, angle_input_queue):
@@ -131,18 +108,20 @@ def prediction_server(shared_buffer, speed_input_queue):
             if BCI_history.full():
                 BCI_history.get()
             BCI_history.put(prediction)
+            
             if prediction == SpeedStates.DISCONNECTED.value:
                 for i in range(BCI_SMOOTHING_WINDOW):
                     BCI_history.put(prediction)
+                
             hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
+
             if hist_weighted_prediction == SpeedStates.DECCEL.value:
                 for i in range(BCI_SMOOTHING_WINDOW):
                     BCI_history.put(hist_weighted_prediction)
 
             speed_pred = hist_weighted_prediction
-            
             speed_input_queue.put(speed_pred)
-
+                              
 
 def tcp_receiver(video_frame_queue):
     print("Connecting to tcp video stream")
@@ -160,6 +139,7 @@ def tcp_receiver(video_frame_queue):
             video_frame_queue.get()    
         video_frame_queue.put(rgb_frame)
 
+        
 
 def eye_tracking(video_frame_queue, angle_input_queue):    
     eye_tracking_history = Queue(maxsize=EYE_SMOOTHING_WINDOW)
@@ -218,9 +198,8 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
 
-                # print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
+                print( AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
-                sleep(0.1)
 
 
 def set_val_from_queue(old_val, q):
@@ -260,7 +239,7 @@ def update_speed_state(state):
     state["speed"] = new_speed
     return state
 
- 
+
 def update_angle_state(state):   
     
     diff = state["target"] - state["current"]
@@ -305,9 +284,6 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
 if __name__ == "__main__":
     # Buffers 
 
-    
-    # Buffers 
-
     speed_input_queue = Manager().Queue()
     angle_input_queue = Manager().Queue()
     PWM_queue = Manager().Queue()
@@ -319,6 +295,7 @@ if __name__ == "__main__":
     shared_buffer = Manager().list()
 
     process_list = []
+    
 
     if os.environ["INPUT_MODE"] == "LIVE":
         osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
