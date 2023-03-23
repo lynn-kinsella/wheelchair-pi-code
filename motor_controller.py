@@ -110,7 +110,7 @@ def osc_server_handler(shared_buffer):
 def prediction_server(shared_buffer, speed_input_queue):
     BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
-    tf_model = tf.keras.models.load_model("./model_saved")
+    tf_model = tf.keras.models.load_model("./saved_model")
     while True:
         if len(shared_buffer) < PREDICT_WINDOW:
             continue
@@ -160,13 +160,13 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
         else:
-            if state["speed"] == 100:
+            if state["speed"] == PEAK_PWM_SPEED:
                 new_acceleration = 0
     
     state["accel"] = new_acceleration
 
     new_speed = state["speed"] + state["accel"]
-    new_speed = min(100, new_speed)
+    new_speed = min(PEAK_PWM_SPEED, new_speed)
     new_speed = max(0, new_speed)
 
     state["speed"] = new_speed
