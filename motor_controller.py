@@ -210,7 +210,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
 
                 print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
-                sleep(0.1)
+                sleep(0.12)
 
 
 def set_val_from_queue(old_val, q):
