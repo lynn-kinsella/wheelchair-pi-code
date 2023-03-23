@@ -182,7 +182,7 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 elif angle <= 0.47:
                     angle = -50
 
-                print(angle, counter)
+                print(angle)
                 counter += 1
 
                 angle_input_queue.put(angle)
@@ -262,7 +262,7 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        print(angle_state['current'], speed_state['speed'])
+        # print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
