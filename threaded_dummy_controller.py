@@ -1,57 +1,55 @@
-import random
 import motor_utils
 from configuration_constants import *
 from state_enums import SpeedStates, AngleStates 
 
 from threading import Thread, Lock, Event
-from multiprocessing import Manager, Process
 from queue import Queue, Empty
-import RPi.GPIO as GPIO
 from time import sleep
-import os
+
 from pythonosc import osc_server, dispatcher
-from time import time
-from collections import deque
 
-import tensorflow as tf
+import os
 import numpy as np
-import mediapipe as mp
+import tensorflow as tf
 import cv2 as cv
+import mediapipe as mp 
 
-'''
-Pin List - 3/8/23
-4 - 5V high
-6 - GND
-10 - Enable (for motors, disable for break)
-12 - Right Motor FWD PWM
-38 -  Right Motor REV PWM
-40 - Left Motor REV PWM
-35 - Left Motor FWD PWM
-'''
+class Motor:
+    def __init__(self, dc=0):
+        self.pwm = dc
+    def ChangeDutyCycle(self, dc):
+        self.pwm = dc
+    def __str__(self) -> str:
+        return str(self.pwm)
+
+class GPIO():
+    def output(pin, state):
+        #print("Pin ", pin, " in state ", state)
+        pass
+
+pwm_l = Motor()
+pwm_r = Motor()
 
 """
-Initialize Pins
+Shared Variables
 """
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
-GPIO.setup(RIGHT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(MOTOR_ENABLE_PIN, GPIO.OUT, initial = GPIO.LOW)
-GPIO.setup(LEFT_PWM_PIN, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(LPWM_R, GPIO.OUT, initial = GPIO.LOW)
-# GPIO.setup(RPWM_R, GPIO.OUT, initial = GPIO.LOW)
+video_frame_queue = Queue(1)
+speed_input_queue = Queue()
+angle_input_queue = Queue()
+PWM_queue = Queue()
 
-# Set pins as PWM
-pwm_r = GPIO.PWM(RIGHT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Right Motor
-pwm_r.start(0)
-# pwm1r = GPIO.PWM(38, 20000) #Right Motor, Reverse
-# pwm1r.start(0)
-pwm_l = GPIO.PWM(LEFT_PWM_PIN, MOTOR_PWM_FREQUENCY) #Left Motor
-pwm_l.start(0)
-# pwm2r = GPIO.PWM(40, 20000) #Left Motor, Reverse
-# pwm2r.start(0)
+# OSC Server internal synchronization variables
+shared_buffer = Queue(maxsize=PREDICT_WINDOW)
+
+if os.environ["INPUT_MODE"] == "LIVE":
+    tf_model = tf.keras.models.load_model("./model_saved")
+    mp_face_mesh = mp.solutions.face_mesh
+else:
+    tf_model = None
+    mp_face_mesh = None
 
 
-def set_PWM(PWM_queue):
+def set_PWM():
     output_enabled = False
     while True:
         # Get angle and speed info from external input
@@ -79,29 +77,24 @@ def set_PWM(PWM_queue):
         # print(pwm_r, " -- ", pwm_l)
 
 
-def dummy_input(speed_input_queue, angle_input_queue):
-    i = 0
+def dummy_input():
     while True:
-        i = (i+1)%2
-        speed, angle = i, i
-        #speed, angle = motor_utils.dummy_external_input()
+        speed, angle = motor_utils.dummy_external_input()
 
         angle_input_queue.put(angle)
         speed_input_queue.put(speed)
-        sleep(1)
 
 
-def eeg_handler(address: str, fixed_args: list, *args):
-    shared_buffer = fixed_args[0]
+def eeg_handler(address: str,*args):
     if len(args) == 4: 
-        if len(shared_buffer) == PREDICT_WINDOW+5:
-            del shared_buffer[0]
-        shared_buffer.append(args)
+        if shared_buffer.full():
+            shared_buffer.get()
+        shared_buffer.put(args)
 
 
-def osc_server_handler(shared_buffer):
+def osc_server_handler():
     osc_dispatcher = dispatcher.Dispatcher()
-    osc_dispatcher.map("/muse/eeg", eeg_handler, shared_buffer)
+    osc_dispatcher.map("/muse/eeg", eeg_handler)
 
     # server = osc_server.ThreadingOSCUDPServer((ip, port), dispatcher)
     server = osc_server.BlockingOSCUDPServer((OSC_SERVER_IP, OSC_SERVER_PORT), osc_dispatcher)
@@ -109,15 +102,14 @@ def osc_server_handler(shared_buffer):
     server.serve_forever()
 
 
-def prediction_server(shared_buffer, speed_input_queue):
+def prediction_server():
     BCI_history = Queue(maxsize=SMOOTHING_WINDOW)
     prev_weighted_prediction = 0
-    tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
-        if len(shared_buffer) < PREDICT_WINDOW:
+        if not shared_buffer.full():
             continue
         else:
-            data = np.array([shared_buffer[:PREDICT_WINDOW]]).transpose(0, 2, 1)
+            data = np.array([shared_buffer.queue]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
 
             # using queue instead
@@ -133,9 +125,14 @@ def prediction_server(shared_buffer, speed_input_queue):
             prev_weighted_prediction = hist_weighted_prediction
             speed_pred = hist_weighted_prediction
             speed_input_queue.put(speed_pred)
+            # print(speed_pred)
+
+        #angle, dummy = motor_utils.dummy_external_input()                                  
+        angle = 0
+        angle_input_queue.put(angle)
 
 
-def tcp_receiver(video_frame_queue):
+def tcp_receiver():
     print("Connecting to tcp video stream")
     cap = cv.VideoCapture('tcp://MM.local:3333')
     while True:
@@ -146,10 +143,9 @@ def tcp_receiver(video_frame_queue):
         frame = cv.flip(frame, 1)
         rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
         video_frame_queue.put(rgb_frame)
+        
 
-
-def eye_tracking(video_frame_queue, angle_input_queue):
-    mp_face_mesh = mp.solutions.face_mesh
+def eye_tracking():
     with mp_face_mesh.FaceMesh(
         max_num_faces=1,
         refine_landmarks=True,
@@ -198,13 +194,14 @@ def eye_tracking(video_frame_queue, angle_input_queue):
 
                 angle_input_queue.put(angle)
 
+
 def set_val_from_queue(old_val, q):
-    if not q.empty():
+    try:
         val = q.get(False)
         if val == SpeedStates.DISCONNECTED:
             val = old_val
         return val
-    else:
+    except Empty as e:
         return old_val
     
 
@@ -223,13 +220,13 @@ def update_speed_state(state):
         if state["phase"] == SpeedStates.REST:
             new_acceleration = max(0, new_acceleration)
         else:
-            if state["speed"] == PEAK_PWM_SPEED:
+            if state["speed"] == 100:
                 new_acceleration = 0
     
     state["accel"] = new_acceleration
 
     new_speed = state["speed"] + state["accel"]
-    new_speed = min(PEAK_PWM_SPEED, new_speed)
+    new_speed = min(100, new_speed)
     new_speed = max(0, new_speed)
 
     state["speed"] = new_speed
@@ -237,19 +234,24 @@ def update_speed_state(state):
 
 
 def update_angle_state(state):   
+    
     diff = state["target"] - state["current"]
-    new_angle = state["current"] + diff*ANGLE_DIFF_MULTIPLIER
+    step = 0
+    if diff > 0:
+        step = 1
+        step = min(abs(diff), step) 
+        step *= diff/abs(diff) 
 
-    state["previous"] = state["current"]
-    state["current"] = new_angle
+    state["current"] = state["current"] + step
     return state
 
 
-def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
+def periodic_update():
     angle_state = {
         "current": 0,
-        "previous": 0,
+        "mode": 0,
         "target": 0,
+        "speedup_counter": 0,
         "phase": AngleStates.REST
     }
     speed_state = {
@@ -267,54 +269,35 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         speed_state  = update_speed_state(speed_state)
         angle_state = update_angle_state(angle_state)
 
+        # print(angle_state["current"])
+
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
 
 if __name__ == "__main__":
-    # Buffers 
-
-    
-    # Buffers 
-
-    speed_input_queue = Manager().Queue()
-    angle_input_queue = Manager().Queue()
-    PWM_queue = Manager().Queue()
-    video_frame_queue = Manager().Queue()
-    
-    # OSC Server internal synchronization variables
-    # FIXME: Using a list here could be slower, we'll have to see when running pi
-    # Solution can be to put osc and prediction server thread on the same process
-    shared_buffer = Manager().list()
-
-    process_list = []
-    pwm_process = Process(target=set_PWM, args=(PWM_queue,))
-    process_list.append(pwm_process)
+    thread_list = []
+    pwm_thread = Thread(target=set_PWM)
+    thread_list.append(pwm_thread)
 
     if os.environ["INPUT_MODE"] == "LIVE":
-        osc_process = Process(target=osc_server_handler, args=(shared_buffer,))
-        process_list.append(osc_process)
-        prediction_process = Process(target=prediction_server, args=(shared_buffer, speed_input_queue))
-        process_list.append(prediction_process)
+        tcp_rx_thread = Thread(target=tcp_receiver)
+        thread_list.append(tcp_rx_thread)
+        eye_tracking_thread = Thread(target=eye_tracking)
+        thread_list.append(eye_tracking_thread)
 
-        tcp_rx_thread = Process(target=tcp_receiver, args=(video_frame_queue))
-        process_list.append(tcp_rx_thread)
-        eye_tracking_thread = Process(target=eye_tracking, args=(video_frame_queue, angle_input_queue))
-        process_list.append(eye_tracking_thread)
+        osc_thread = Thread(target=osc_server_handler)
+        thread_list.append(osc_thread)
+        prediction_thread = Thread(target=prediction_server)
+        thread_list.append(prediction_thread)
 
     else:
-        dummy_process = Process(target=dummy_input, args=(speed_input_queue, angle_input_queue))
-        process_list.append(dummy_process)
+        dummy_thread = Thread(target=dummy_input)
+        thread_list.append(dummy_thread)
 
-    state_process = Process(target=periodic_update, args=(PWM_queue, angle_input_queue, speed_input_queue))
-    process_list.append(state_process)
+    state_thread = Thread(target=periodic_update)
+    thread_list.append(state_thread)
 
-    for process in process_list:
-        process.start()
-
-    set_PWM(PWM_queue)
-
-    for process in process_list:
-        process.join()
+    for thread in thread_list:
+        thread.start()

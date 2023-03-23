@@ -1,6 +1,8 @@
 import motor_utils
 from configuration_constants import *
 from state_enums import SpeedStates, AngleStates 
+import cv2 as cv
+import mediapipe as mp
 
 from threading import Thread, Lock, Event
 from multiprocessing import Manager, Process
@@ -120,6 +122,70 @@ def prediction_server(shared_buffer, speed_input_queue):
 
         #angle, dummy = motor_utils.dummy_external_input()                                  
 
+def tcp_receiver(video_frame_queue):
+    print("Connecting to tcp video stream")
+    cap = cv.VideoCapture('tcp://MM.local:3333')
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error reading frame")
+            continue
+        frame = cv.flip(frame, 1)
+        rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        video_frame_queue.put(rgb_frame)
+        
+
+def eye_tracking(video_frame_queue, angle_input_queue):
+    mp_face_mesh = mp.solutions.face_mesh
+    with mp_face_mesh.FaceMesh(
+        max_num_faces=1,
+        refine_landmarks=True,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
+    ) as face_mesh:
+        counter = 0
+        while True:
+            frame = video_frame_queue.get()
+            img_h, img_w = frame.shape[:2]
+            results = face_mesh.process(frame)
+
+            if results.multi_face_landmarks:
+                # Get Mesh Points
+                mesh_points=np.array([np.multiply([p.x, p.y], [img_w, img_h]).astype(int) for p in results.multi_face_landmarks[0].landmark])
+                
+                left_iris_points = mesh_points[LEFT_IRIS]
+                right_iris_points = mesh_points[RIGHT_IRIS]
+
+                left_iris = left_iris_points[0][0] + left_iris_points[1][0] + left_iris_points[2][0] + left_iris_points[3][0]
+                left_iris = left_iris//4
+                right_iris = right_iris_points[0][0] + right_iris_points[1][0] + right_iris_points[2][0] + right_iris_points[3][0]
+                right_iris = right_iris//4
+
+                ### Calculate Eye Corners
+                lcorners = mesh_points[LEFT_CORNERS]
+                lcorners = [lcorners[0][0], lcorners[1][0]]
+                rcorners = mesh_points[RIGHT_CORNERS]
+                rcorners = [rcorners[0][0], rcorners[1][0]]
+
+                # Calculate angle
+                # Represented as % of distance the centre of iris is from left corner to right corner of eye
+                total_dist = lcorners[1] - lcorners[0] + rcorners[1] - rcorners[0]
+                offset = left_iris - lcorners[0] + right_iris - rcorners[0]
+                angle = offset/total_dist
+
+                if angle < .53 and angle > .47:
+                    angle = 0
+                elif angle >= .53:
+                    angle = 50
+                elif angle <= 0.47:
+                    angle = -50
+
+                print(angle, counter)
+                counter += 1
+
+                angle_input_queue.put(angle)
+
+
 def set_val_from_queue(old_val, q):
     if not q.empty():
         val = q.get(False)
@@ -201,6 +267,7 @@ if __name__ == "__main__":
     speed_input_queue = Manager().Queue()
     angle_input_queue = Manager().Queue()
     PWM_queue = Manager().Queue()
+    video_frame_queue = Manager().Queue()
     
     # OSC Server internal synchronization variables
     # FIXME: Using a list here could be slower, we'll have to see when running pi
@@ -216,6 +283,11 @@ if __name__ == "__main__":
         process_list.append(osc_process)
         prediction_process = Process(target=prediction_server, args=(shared_buffer, speed_input_queue))
         process_list.append(prediction_process)
+
+        tcp_rx_thread = Process(target=tcp_receiver, args=(video_frame_queue))
+        process_list.append(tcp_rx_thread)
+        eye_tracking_thread = Process(target=eye_tracking, args=(video_frame_queue, angle_input_queue))
+        process_list.append(eye_tracking_thread)
 
     else:
         dummy_process = Process(target=dummy_input, args=(speed_input_queue, angle_input_queue))
