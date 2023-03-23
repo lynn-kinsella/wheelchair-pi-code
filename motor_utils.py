@@ -5,13 +5,13 @@ def motor_map(angle, speed):
     Convert an angle in % from -100 being fully right and 100 being fully left
     """
     
-    if (angle >= 0 ):
+    if (angle <= 0 ):
         # left_factor = 1 - abs(2*angle/math.pi)
         # right_factor = 1
-        left_pwm = speed - angle
+        left_pwm = abs(speed) - abs(angle/100*speed)
         right_pwm = speed
-    if (angle < 0):
-        right_pwm = speed + angle
+    if (angle > 0):
+        right_pwm = abs(speed) - abs(angle/100*speed)
         left_pwm = speed
         # left_factor = 1
         # right_factor = 1 - abs(2*angle/math.pi)
