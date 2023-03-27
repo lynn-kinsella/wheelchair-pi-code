@@ -7,6 +7,7 @@ import mediapipe as mp
 from threading import Thread, Lock, Event
 from multiprocessing import Manager, Process
 from queue import Queue
+from collections import deque
 from time import sleep
 
 from pythonosc import osc_server, dispatcher
@@ -95,7 +96,7 @@ def osc_server_handler(shared_buffer):
 
 
 def prediction_server(shared_buffer, speed_input_queue):
-    BCI_history = Queue(maxsize=BCI_SMOOTHING_WINDOW)
+    BCI_history = deque(maxlen=BCI_SMOOTHING_WINDOW)
     tf_model = tf.keras.models.load_model(MODEL_DIR)
     while True:
         if len(shared_buffer) < BCI_PREDICT_WINDOW:
@@ -104,22 +105,20 @@ def prediction_server(shared_buffer, speed_input_queue):
             data = np.array([shared_buffer[:BCI_PREDICT_WINDOW]]).transpose(0, 2, 1)
             prediction = np.argmax(tf_model.predict(data, verbose=0)[0])
 
-            # using queue instead
-            if BCI_history.full():
-                BCI_history.get()
-            BCI_history.put(prediction)
+            BCI_history.appendleft(prediction)
             
             if prediction == SpeedStates.DISCONNECTED.value:
                 for i in range(BCI_SMOOTHING_WINDOW):
-                    BCI_history.put(prediction)
+                    BCI_history.appendleft(prediction)
                 
             hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
 
             if hist_weighted_prediction == SpeedStates.DECCEL.value:
                 for i in range(BCI_SMOOTHING_WINDOW):
-                    BCI_history.put(hist_weighted_prediction)
+                    BCI_history.put(hist_weighted_prediction)     
 
             speed_pred = hist_weighted_prediction
+            # print(SpeedStates(speed_pred).name)
             speed_input_queue.put(speed_pred)
                               
 
@@ -130,7 +129,7 @@ def tcp_receiver(video_frame_queue):
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Error reading frame")
+            # print("Error reading frame")
             sleep(1/10/2) # Sleep for half a frame @ 10 FPS
             continue
         frame = cv.flip(frame, 1)
@@ -183,9 +182,9 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 if angle < LEFT_CENTER_DEADZONE and angle > RIGHT_CENTER_DEADZONE:
                     angle = 0
                 elif angle <= RIGHT_CENTER_DEADZONE:
-                    angle = 50
+                    angle = MAX_ANGLE
                 elif angle >= LEFT_CENTER_DEADZONE:
-                    angle = -50
+                    angle = -MAX_ANGLE
                         
                 # using queue instead
                 if eye_tracking_history.full():
@@ -276,7 +275,7 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        # print(angle_state['current'], speed_state['speed'])
+        print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
