@@ -134,7 +134,7 @@ def prediction_server(shared_buffer, speed_input_queue):
                 for i in range(BCI_SMOOTHING_WINDOW):
                     BCI_history.appendleft(prediction)
 
-            hist_weighted_prediction = max(BCI_history.queue, key=BCI_history.queue.count)
+            hist_weighted_prediction = max(list(BCI_history), key=list(BCI_history).count)
 
             # if hist_weighted_prediction == SpeedStates.DECCEL.value:
             #     for i in range(BCI_SMOOTHING_WINDOW):
