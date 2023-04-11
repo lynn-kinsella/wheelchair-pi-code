@@ -152,7 +152,7 @@ def tcp_receiver(video_frame_queue):
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Error reading frame")
+            # print("Error reading frame")
             sleep(1/10/2) # Sleep for half a frame @ 10 FPS
             continue
         frame = cv.flip(frame, 1)
