@@ -281,6 +281,15 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
+
+        state_str = "Speed State: "
+        state_str += speed_state["phase"].name
+        if angle_state["current"] > 10:
+            print(", Eye Tracking State: Right")
+        elif angle_state["current"] < -10:
+            print(", Eye Tracking State: Left")
+        else:
+            print(", Eye Tracking State: Center")
         # print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
