@@ -218,8 +218,13 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #    for i in range(len(BCI_history)//2):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
+                if angle_pred > 50:
+                    print("Eye Tracking: Right")
+                elif angle_pred < -50:
+                    print("Eye Tracking: Left")
+                else:
+                    print("Eye Tracking: Center")
 
-                print("Eye Tracking: ", AnglePred( (int)(angle_pred)).name)
                 angle_input_queue.put(angle_pred)
                 # sleep(0.1)
 
