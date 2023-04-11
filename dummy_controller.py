@@ -118,7 +118,7 @@ def prediction_server(shared_buffer, speed_input_queue):
                     BCI_history.put(hist_weighted_prediction)     
 
             speed_pred = hist_weighted_prediction
-            # print(SpeedStates(speed_pred).name)
+            print(SpeedStates(speed_pred).name)
             speed_input_queue.put(speed_pred)
                               
 
@@ -197,7 +197,13 @@ def eye_tracking(video_frame_queue, angle_input_queue):
                 #        BCI_history.pop()
                 angle_pred = hist_weighted_prediction
 
-                print( AnglePred( (int)(angle_pred)).name)
+                if angle_pred > 50:
+                    print("Eye Tracking: Right")
+                elif angle_pred < -50:
+                    print("Eye Tracking: Left")
+                else:
+                    print("Eye Tracking: Center")
+                    
                 angle_input_queue.put(angle_pred)
 
 
@@ -275,7 +281,7 @@ def periodic_update(PWM_queue, angle_input_queue, speed_input_queue):
         angle_state = update_angle_state(angle_state)
 
         PWM_queue.put((angle_state["current"], speed_state["speed"]))
-        print(angle_state['current'], speed_state['speed'])
+        # print(angle_state['current'], speed_state['speed'])
 
         sleep(UPDATE_PERIOD)
         
